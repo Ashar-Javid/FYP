@@ -179,23 +179,32 @@ class AlgorithmTool:
         # Convert power to linear scale
         transmit_power = 10**(bs_power_dBm/10) / 1000  # dBm to Watts
         
-        # Execute algorithm
+        # Execute algorithm - handle both short names and full names
         start_time = datetime.now()
+        algorithm_key = algorithm_name.lower()
         
-        if algorithm_name.lower() == "gd":
+        # Map full algorithm names to short keys
+        if "gradient_descent" in algorithm_key or algorithm_key == "gd":
+            algorithm_key = "gd"
+        elif "manifold" in algorithm_key:
+            algorithm_key = "manifold"
+        elif "alternating" in algorithm_key or algorithm_key == "ao":
+            algorithm_key = "ao"
+        
+        if algorithm_key == "gd":
             theta_opt, rates_hist, snrs_hist, phases_hist = self.ris_algorithms.gradient_descent_adam_multi(
                 h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=500
             )
-        elif algorithm_name.lower() == "manifold":
+        elif algorithm_key == "manifold":
             theta_opt, rates_hist, snrs_hist, phases_hist = self.ris_algorithms.manifold_optimization_adam_multi(
                 h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=500
             )
-        elif algorithm_name.lower() == "ao":
+        elif algorithm_key == "ao":
             theta_opt, rates_hist, snrs_hist, phases_hist = self.ris_algorithms.alternating_optimization_multi(
                 h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=200
             )
         else:
-            raise ValueError(f"Algorithm {algorithm_name} not implemented")
+            raise ValueError(f"Algorithm {algorithm_name} not implemented. Available: GD, Manifold, AO")
         
         execution_time = (datetime.now() - start_time).total_seconds()
         
@@ -254,6 +263,26 @@ class AlgorithmTool:
             final_snrs[user["id"]] = current_snr + improvement
         
         return final_snrs
+
+    def run_algorithm_comparison(self, scenario_data: Dict[str, Any], bs_power_dBm: float) -> Dict[str, Dict[int, float]]:
+        """Run all implemented algorithms plus a random baseline on full user set.
+        Returns mapping algorithm_name -> {user_id: final_snr}.
+        """
+        user_ids = [u["id"] for u in scenario_data["scenario_data"]["users"]]
+        algorithms = ["gradient_descent_adam_multi", "manifold_optimization_adam_multi", "alternating_optimization_multi"]
+        results = {}
+        for algo_full in algorithms:
+            try:
+                res = self.execute_algorithm(algo_full, scenario_data, user_ids, bs_power_dBm)
+                results[algo_full] = res.get("final_snrs", {})
+            except Exception as e:
+                results[algo_full] = {uid: np.nan for uid in user_ids}
+        # Random baseline
+        baseline = {}
+        for u in scenario_data["scenario_data"]["users"]:
+            baseline[u["id"]] = u["achieved_snr_dB"] + np.random.uniform(0, 3)  # small random gain
+        results["random_baseline"] = baseline
+        return results
 
 
 class PowerControlTool:
@@ -403,66 +432,65 @@ class VisualizationTool:
         self.plots_dir = FRAMEWORK_CONFIG["plots_dir"]
     
     def plot_iteration_progress(self, iteration_history: List[Dict[str, Any]], save_path: str = None) -> str:
-        """Create plots showing progress across iterations."""
+        """Deprecated: legacy progress plot removed."""
+        return None
+
+    def plot_power_and_snr_evolution(self, iteration_history: List[Dict[str, Any]], save_path: str = None) -> Optional[str]:
+        """Plot evolution of BS power and average final delta SNR per iteration."""
         if not iteration_history:
             return None
-        
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        
-        iterations = range(1, len(iteration_history) + 1)
-        
-        # Plot 1: Average Delta SNR progression
-        avg_delta_snrs = []
-        for iteration in iteration_history:
-            delta_snrs = [u.get("final_delta_snr", 0) for u in iteration.get("user_results", [])]
-            avg_delta_snrs.append(np.mean(delta_snrs) if delta_snrs else 0)
-        
-        axes[0, 0].plot(iterations, avg_delta_snrs, 'b-o', markersize=6)
-        axes[0, 0].axhline(y=0, color='r', linestyle='--', alpha=0.7)
-        axes[0, 0].set_xlabel('Iteration')
-        axes[0, 0].set_ylabel('Average Δ SNR (dB)')
-        axes[0, 0].set_title('Delta SNR Progress')
-        axes[0, 0].grid(True, alpha=0.3)
-        
-        # Plot 2: Power consumption
-        power_levels = [iteration.get("final_power_dBm", 20) for iteration in iteration_history]
-        axes[0, 1].plot(iterations, power_levels, 'g-s', markersize=6)
-        axes[0, 1].set_xlabel('Iteration')
-        axes[0, 1].set_ylabel('BS Power (dBm)')
-        axes[0, 1].set_title('Power Level Evolution')
-        axes[0, 1].grid(True, alpha=0.3)
-        
-        # Plot 3: Algorithm usage
-        algorithms = [iteration.get("algorithm", "unknown") for iteration in iteration_history]
-        unique_algos = list(set(algorithms))
-        algo_counts = [algorithms.count(algo) for algo in unique_algos]
-        
-        axes[1, 0].bar(unique_algos, algo_counts, color=['red', 'blue', 'green', 'orange'][:len(unique_algos)])
-        axes[1, 0].set_xlabel('Algorithm')
-        axes[1, 0].set_ylabel('Usage Count')
-        axes[1, 0].set_title('Algorithm Selection Distribution')
-        
-        # Plot 4: Success rate
-        success_rates = []
-        for i in range(len(iteration_history)):
-            recent_iterations = iteration_history[max(0, i-2):i+1]  # Last 3 iterations
-            successes = sum(1 for it in recent_iterations if it.get("success", False))
-            success_rates.append(successes / len(recent_iterations) * 100)
-        
-        axes[1, 1].plot(iterations, success_rates, 'm-^', markersize=6)
-        axes[1, 1].set_xlabel('Iteration')
-        axes[1, 1].set_ylabel('Success Rate (%)')
-        axes[1, 1].set_title('Rolling Success Rate (3-iteration window)')
-        axes[1, 1].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        
+        iterations = list(range(1, len(iteration_history)+1))
+        powers = [it.get("current_power_dBm", 0) for it in iteration_history]
+        avg_deltas = [it.get("avg_final_delta_snr", 0) for it in iteration_history]
+
+        fig, ax1 = plt.subplots(figsize=(10,6))
+        color1 = '#1f77b4'
+        ax1.set_xlabel('Iteration')
+        ax1.set_ylabel('BS Power (dBm)', color=color1)
+        ax1.plot(iterations, powers, '-o', color=color1, label='Power (dBm)')
+        ax1.tick_params(axis='y', labelcolor=color1)
+        ax1.grid(True, alpha=0.25)
+
+        ax2 = ax1.twinx()
+        color2 = '#d62728'
+        ax2.set_ylabel('Avg Final Δ SNR (dB)', color=color2)
+        ax2.plot(iterations, avg_deltas, '-s', color=color2, label='Avg Final Δ SNR')
+        ax2.tick_params(axis='y', labelcolor=color2)
+
+        fig.suptitle('Power and Average Final Δ SNR Evolution')
+        fig.tight_layout()
         if save_path is None:
-            save_path = os.path.join(self.plots_dir, f'framework_progress_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
-        
+            save_path = os.path.join(self.plots_dir, f'power_snr_evolution_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
-        
+        return save_path
+
+    def plot_power_efficiency(self, iteration_history: List[Dict[str, Any]], save_path: str = None) -> Optional[str]:
+        """Plot power waste score and users satisfied over iterations to reflect efficiency."""
+        if not iteration_history:
+            return None
+        iterations = list(range(1, len(iteration_history)+1))
+        waste_scores = [it.get('evaluation', {}).get('power_waste_score', 0) for it in iteration_history]
+        satisfied = [it.get('evaluation', {}).get('users_satisfied_after', 0) for it in iteration_history]
+
+        fig, ax1 = plt.subplots(figsize=(10,6))
+        ax1.set_xlabel('Iteration')
+        ax1.set_ylabel('Power Waste Score', color='#9467bd')
+        ax1.plot(iterations, waste_scores, '-o', color='#9467bd', label='Power Waste Score')
+        ax1.tick_params(axis='y', labelcolor='#9467bd')
+        ax1.grid(True, alpha=0.25)
+
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('Users Satisfied', color='#2ca02c')
+        ax2.plot(iterations, satisfied, '-^', color='#2ca02c', label='Users Satisfied')
+        ax2.tick_params(axis='y', labelcolor='#2ca02c')
+
+        fig.suptitle('Power Efficiency & User Satisfaction')
+        fig.tight_layout()
+        if save_path is None:
+            save_path = os.path.join(self.plots_dir, f'power_efficiency_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
         return save_path
     
     def generate_final_report_plot(self, final_results: Dict[str, Any], save_path: str = None) -> str:
@@ -470,6 +498,112 @@ class VisualizationTool:
         # Implementation for final report plotting
         # This would create a detailed summary of the entire optimization session
         pass
+
+    def plot_final_snr_comparison(self, scenario_data: Dict[str, Any], iteration_history: List[Dict[str, Any]], save_path: str = None) -> Optional[str]:
+        """
+        Plot per-user SNR comparison showing:
+          - Required SNR
+          - Initial (pre-optimization) achieved SNR
+          - Final (post-optimization) SNR from last iteration's algorithm_results.final_snrs
+
+        Parameters:
+            scenario_data: Original scenario structure returned by ScenarioTool (contains required & initial SNRs)
+            iteration_history: List of iteration result dicts (to obtain final_snrs from last iteration)
+            save_path: Optional explicit path for saving
+        Returns:
+            Path to saved plot or None if data insufficient.
+        """
+        if not scenario_data or not iteration_history:
+            return None
+
+        last_iteration = iteration_history[-1]
+        algorithm_results = last_iteration.get("algorithm_results", {})
+        final_snrs = algorithm_results.get("final_snrs")
+        if not final_snrs:
+            return None
+
+        try:
+            users = scenario_data["scenario_data"]["users"]
+        except Exception:
+            return None
+
+        user_ids = [u["id"] for u in users]
+        required_snrs = [u.get("req_snr_dB", 0) for u in users]
+        initial_snrs = [u.get("achieved_snr_dB", 0) for u in users]
+        final_snrs_ordered = [final_snrs.get(uid, initial_snrs[i]) for i, uid in enumerate(user_ids)]
+
+        x = np.arange(len(user_ids))
+        width = 0.25
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(x - width, required_snrs, width, label='Required', color='#4C72B0', alpha=0.8)
+        plt.bar(x, initial_snrs, width, label='Initial', color='#55A868', alpha=0.8)
+        plt.bar(x + width, final_snrs_ordered, width, label='Final', color='#C44E52', alpha=0.85)
+
+        # Annotate improvements
+        for i, (init, final) in enumerate(zip(initial_snrs, final_snrs_ordered)):
+            improvement = final - init
+            plt.text(x[i] + width, final + 0.3, f"+{improvement:.1f}dB", ha='center', va='bottom', fontsize=8, rotation=0)
+
+        plt.xticks(x, [f'U{uid}' for uid in user_ids])
+        plt.ylabel('SNR (dB)')
+        plt.xlabel('Users')
+        plt.title('Per-User SNR Comparison (Required vs Initial vs Final)')
+        plt.grid(axis='y', alpha=0.25)
+        plt.legend()
+        plt.tight_layout()
+
+        if save_path is None:
+            save_path = os.path.join(self.plots_dir, f'final_snr_comparison_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        return save_path
+
+    def plot_algorithm_comparison(self, scenario_data: Dict[str, Any], comparison_results: Dict[str, Dict[int, float]], save_path: str = None, agent_final_snrs: Optional[Dict[int, float]] = None) -> Optional[str]:
+        """Create grouped bar chart of per-user final SNRs across algorithms (including random baseline)
+        plus the agent's actual final run result if provided.
+        """
+        if not comparison_results:
+            return None
+        users = scenario_data["scenario_data"]["users"]
+        user_ids = [u["id"] for u in users]
+        algorithms = list(comparison_results.keys())
+        algorithms_sorted = [a for a in algorithms if a != 'random_baseline']
+        if 'random_baseline' in algorithms:
+            algorithms_sorted.append('random_baseline')
+        if agent_final_snrs:
+            algorithms_sorted.append('agent_final')
+        num_algos = len(algorithms_sorted)
+        x = np.arange(len(user_ids))
+        width = 0.12 if num_algos > 6 else 0.15
+
+        plt.figure(figsize=(max(10, 2*len(user_ids)), 6))
+        for i, algo in enumerate(algorithms_sorted):
+            if algo == 'agent_final':
+                vals = [agent_final_snrs.get(uid, np.nan) for uid in user_ids]
+                label = 'Agent Final'
+            else:
+                vals = [comparison_results[algo].get(uid, np.nan) for uid in user_ids]
+                label = algo.replace('_adam_multi','').replace('_optimization','').replace('_multi','').replace('_',' ').title()
+            plt.bar(x + (i - num_algos/2)*width + width/2, vals, width, label=label, alpha=0.85)
+
+        # Required SNR line(s)
+        req_snrs = [u.get('req_snr_dB', 0) for u in users]
+        plt.plot(x, req_snrs, 'k--', linewidth=1.2, label='Required SNR')
+
+        plt.xticks(x, [f'U{uid}' for uid in user_ids])
+        plt.ylabel('Final SNR (dB)')
+        plt.xlabel('Users')
+        plt.title('Per-User Final SNR: Algorithms vs Agent')
+        plt.grid(axis='y', alpha=0.25)
+        plt.legend(ncol=2, fontsize=8)
+        plt.tight_layout()
+        if save_path is None:
+            save_path = os.path.join(self.plots_dir, f'algorithm_comparison_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        return save_path
 
 
 # Export all tools

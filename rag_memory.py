@@ -59,10 +59,20 @@ class RAGMemorySystem:
         features.append(len(users))  # Number of users
         features.append(sum(1 for u in users if u.get("csi", {}).get("los", False)))  # LoS count
         
-        # SNR statistics
-        req_snrs = [u["required_snr_dB"] for u in users]
-        ach_snrs = [u["achieved_snr_dB"] for u in users]
-        delta_snrs = [u["delta_snr_dB"] for u in users]
+        # SNR statistics - handle both field name formats
+        req_snrs = []
+        ach_snrs = []
+        delta_snrs = []
+        
+        for u in users:
+            # Handle different field name formats
+            req_snr = u.get("required_snr_dB", u.get("req_snr_dB", 0))
+            ach_snr = u.get("achieved_snr_dB", 0)
+            delta_snr = u.get("delta_snr_dB", ach_snr - req_snr)
+            
+            req_snrs.append(req_snr)
+            ach_snrs.append(ach_snr)
+            delta_snrs.append(delta_snr)
         
         features.extend([
             np.mean(req_snrs), np.std(req_snrs),

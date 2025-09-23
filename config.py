@@ -18,7 +18,9 @@ FRAMEWORK_CONFIG = {
     "convergence_tolerance": 0.1,
     "memory_file": "framework_memory.json",
     "results_dir": "results",
-    "plots_dir": "plots"
+    "plots_dir": "plots",
+    "logs_dir": "logs",
+    "metrics_dir": "metrics"
 }
 
 # RAG Configuration
@@ -81,13 +83,27 @@ def ensure_directories():
     """Create necessary directories for the framework."""
     os.makedirs(FRAMEWORK_CONFIG["results_dir"], exist_ok=True)
     os.makedirs(FRAMEWORK_CONFIG["plots_dir"], exist_ok=True)
+    os.makedirs(FRAMEWORK_CONFIG["logs_dir"], exist_ok=True)
+    os.makedirs(FRAMEWORK_CONFIG["metrics_dir"], exist_ok=True)
 
 def load_framework_memory() -> Dict[str, Any]:
     """Load persistent framework memory."""
     memory_file = FRAMEWORK_CONFIG["memory_file"]
     if os.path.exists(memory_file):
-        with open(memory_file, 'r') as f:
-            return json.load(f)
+        try:
+            with open(memory_file, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            # Backup corrupted file
+            backup_path = memory_file + ".corrupt"
+            try:
+                import shutil
+                shutil.copy(memory_file, backup_path)
+                print(f"⚠️  Corrupted memory file detected. Backup created at {backup_path}. Reinitializing memory.")
+            except Exception as be:
+                print(f"⚠️  Failed to backup corrupted memory file: {be}")
+        except Exception as e:
+            print(f"⚠️  Error loading memory: {e}. Reinitializing.")
     return {
         "learned_patterns": [],
         "iteration_history": [],
@@ -98,8 +114,27 @@ def load_framework_memory() -> Dict[str, Any]:
 def save_framework_memory(memory: Dict[str, Any]):
     """Save framework memory to persistent storage."""
     memory_file = FRAMEWORK_CONFIG["memory_file"]
+    
+    # Make memory JSON serializable by converting numpy arrays
+    def make_serializable(obj):
+        """Convert numpy types and other non-serializable objects to JSON-compatible types."""
+        if isinstance(obj, dict):
+            return {k: make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [make_serializable(item) for item in obj]
+        elif hasattr(obj, 'tolist'):  # numpy arrays
+            return obj.tolist()
+        elif hasattr(obj, 'item'):  # numpy scalars
+            return obj.item()
+        elif isinstance(obj, (int, float, str, bool, type(None))):
+            return obj
+        else:
+            return str(obj)
+    
+    serializable_memory = make_serializable(memory)
+    
     with open(memory_file, 'w') as f:
-        json.dump(memory, f, indent=2)
+        json.dump(serializable_memory, f, indent=2)
 
 # Export key configurations
 __all__ = [

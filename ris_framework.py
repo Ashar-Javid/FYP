@@ -14,6 +14,7 @@ from typing import Dict, List, Any, Optional
 from config import FRAMEWORK_CONFIG, ensure_directories, load_framework_memory, save_framework_memory
 from tools import ScenarioTool, AlgorithmTool, PowerControlTool, MemoryTool, VisualizationTool
 from agents import CoordinatorAgent, EvaluatorAgent
+from metrics_logger import MetricsLogger
 
 
 class RISOptimizationFramework:
@@ -53,6 +54,7 @@ class RISOptimizationFramework:
         # Initialize session
         session_start_time = time.time()
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        metrics_logger = MetricsLogger(session_id)
         
         # Load scenario
         self.current_scenario = self.scenario_tool.get_scenario_5ub()
@@ -75,11 +77,20 @@ class RISOptimizationFramework:
             try:
                 iteration_result = self._run_single_iteration(iteration)
                 self.iteration_history.append(iteration_result)
+                # Log metrics to CSV
+                try:
+                    metrics_logger.log_iteration(iteration_result)
+                except Exception as e:
+                    print(f"⚠️  Metrics logging failed: {e}")
                 
                 # Check stopping criteria
                 if self._check_stopping_criteria(iteration_result):
-                    print(f"✅ Stopping criteria met after {iteration} iterations!")
-                    break
+                    # Allow at least 3 iterations for richer plots; else stop
+                    if iteration >= 3:
+                        print(f"✅ Stopping criteria met after {iteration} iterations!")
+                        break
+                    else:
+                        print("ℹ️  Success criteria met early; continuing to gather more iteration data (min 3).")
                     
                 # Update power for next iteration if needed
                 if iteration_result.get("power_adjustment_needed", False):
@@ -94,6 +105,26 @@ class RISOptimizationFramework:
         
         # Generate final results
         session_results = self._generate_session_results(session_id, session_start_time)
+
+        # Post-session: Run algorithm comparison with all users
+        try:
+            all_user_comparison = self.algorithm_tool.run_algorithm_comparison(
+                self.current_scenario, self.current_power_dBm
+            )
+            # Extract agent's final iteration SNRs
+            agent_final_snrs = {}
+            if self.iteration_history:
+                last_algo_results = self.iteration_history[-1].get('algorithm_results', {})
+                agent_final_snrs = last_algo_results.get('final_snrs', {})
+            comparison_plot = self.viz_tool.plot_algorithm_comparison(
+                self.current_scenario, all_user_comparison,
+                os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"algorithm_comparison_{session_id}.png"),
+                agent_final_snrs=agent_final_snrs
+            )
+            session_results.setdefault("plots", {})["algorithm_comparison"] = comparison_plot
+            session_results["algorithm_comparison_results"] = all_user_comparison
+        except Exception as e:
+            print(f"⚠️  Algorithm comparison failed: {e}")
         
         # Save results
         self._save_session_results(session_results, session_id)
@@ -141,9 +172,27 @@ class RISOptimizationFramework:
         
         # 4. Evaluator Assessment
         print("🔍 Evaluator assessing results...")
-        evaluation = self.evaluator.evaluate_iteration(
-            before_state, after_state, coordinator_decision
-        )
+        try:
+            # Debug: Check if states contain serializable data
+            # Convert numpy arrays to lists for JSON serialization
+            clean_before_state = self._make_json_serializable(before_state)
+            clean_after_state = self._make_json_serializable(after_state)
+            
+            evaluation = self.evaluator.evaluate_iteration(
+                clean_before_state, clean_after_state, coordinator_decision
+            )
+        except Exception as e:
+            print(f"⚠️  Evaluator error: {e}")
+            # Provide fallback evaluation
+            evaluation = {
+                "performance_summary": "Evaluation failed, using fallback",
+                "power_efficiency_status": "acceptable",
+                "fairness_assessment": "reasonable",
+                "recommendations": "Continue optimization",
+                "success": False,
+                "overall_score": 0.5,
+                "is_fallback": True
+            }
         
         print(f"📊 Evaluation Results:")
         print(f"   Success: {evaluation.get('success', False)}")
@@ -155,6 +204,15 @@ class RISOptimizationFramework:
         power_recommendation = self._assess_power_needs(evaluation, after_state)
         
         # 6. Compile iteration results
+        # Compute per-user final delta SNRs for plotting/metrics
+        per_user_final_delta = []
+        if "final_snrs" in algorithm_results:
+            for user in self.current_scenario["scenario_data"]["users"]:
+                uid = user["id"]
+                final_snr = algorithm_results["final_snrs"].get(uid, user["achieved_snr_dB"])
+                final_delta = final_snr - user["req_snr_dB"]
+                per_user_final_delta.append({"user_id": uid, "final_delta_snr_dB": final_delta})
+        avg_final_delta = float(sum(u["final_delta_snr_dB"] for u in per_user_final_delta)/len(per_user_final_delta)) if per_user_final_delta else 0.0
         iteration_result = {
             "iteration": iteration_num,
             "timestamp": datetime.now().isoformat(),
@@ -164,11 +222,18 @@ class RISOptimizationFramework:
             "evaluation": evaluation,
             "power_recommendation": power_recommendation,
             "current_power_dBm": self.current_power_dBm,
-            "success": evaluation.get("success", False)
+            "success": evaluation.get("success", False),
+            "per_user_final_delta_snr": per_user_final_delta,
+            "avg_final_delta_snr": avg_final_delta
         }
         
         # 7. Store in memory for learning
-        self.memory_tool.store_iteration_result(iteration_result)
+        try:
+            # Clean iteration result for JSON serialization before storing
+            clean_iteration_result = self._make_json_serializable(iteration_result)
+            self.memory_tool.store_iteration_result(clean_iteration_result)
+        except Exception as e:
+            print(f"⚠️  Warning: Could not store iteration result in memory: {e}")
         
         return iteration_result
     
@@ -256,13 +321,24 @@ class RISOptimizationFramework:
         else:
             improvement = 0
         
-        # Generate performance plots
-        progress_plot_path = None
+        # Generate new plots (power/SNR evolution and efficiency)
+        power_snr_plot = None
+        efficiency_plot = None
         if self.iteration_history:
-            progress_plot_path = self.viz_tool.plot_iteration_progress(
-                self.iteration_history,
-                os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"session_progress_{session_id}.png")
-            )
+            try:
+                power_snr_plot = self.viz_tool.plot_power_and_snr_evolution(
+                    self.iteration_history,
+                    os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"power_snr_evolution_{session_id}.png")
+                )
+            except Exception as e:
+                print(f"⚠️  Could not generate power/SNR evolution plot: {e}")
+            try:
+                efficiency_plot = self.viz_tool.plot_power_efficiency(
+                    self.iteration_history,
+                    os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"power_efficiency_{session_id}.png")
+                )
+            except Exception as e:
+                print(f"⚠️  Could not generate power efficiency plot: {e}")
         
         session_results = {
             "session_id": session_id,
@@ -277,10 +353,22 @@ class RISOptimizationFramework:
             "final_evaluation": final_evaluation,
             "iteration_history": self.iteration_history,
             "plots": {
-                "progress_plot": progress_plot_path
+                "power_snr_evolution": power_snr_plot,
+                "power_efficiency": efficiency_plot
             },
             "stopping_reason": self._get_stopping_reason()
         }
+
+        # Add final per-user SNR comparison plot if data available
+        try:
+            final_snr_plot = self.viz_tool.plot_final_snr_comparison(
+                self.current_scenario, self.iteration_history,
+                os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"final_snr_comparison_{session_id}.png")
+            ) if self.iteration_history else None
+            if final_snr_plot:
+                session_results["plots"]["final_snr_comparison"] = final_snr_plot
+        except Exception as e:
+            print(f"⚠️  Could not generate final SNR comparison plot: {e}")
         
         return session_results
     
@@ -370,13 +458,16 @@ def main():
         framework.print_session_summary(results)
         
         # Success indicator
-        final_score = results.get('final_evaluation', {}).get('overall_score', 0)
-        if final_score > 0.8:
-            print("🎉 Optimization session completed successfully!")
-        elif final_score > 0.6:
-            print("✅ Optimization session completed with good results!")
+        if results:
+            final_score = results.get('final_evaluation', {}).get('overall_score', 0)
+            if final_score > 0.8:
+                print("🎉 Optimization session completed successfully!")
+            elif final_score > 0.6:
+                print("✅ Optimization session completed with good results!")
+            else:
+                print("⚠️  Optimization session completed with room for improvement.")
         else:
-            print("⚠️  Optimization session completed with room for improvement.")
+            print("⚠️  Session completed but no results were generated.")
         
         return results
         

@@ -40,7 +40,9 @@ def test_framework_components():
         print(f"   ✅ RAG system loaded with {len(rag.dataset)} examples")
         
         # Test simple similarity search
-        similar = rag.find_similar_scenarios(scenario["scenario_data"])
+        # Create proper structure for RAG system
+        scenario_for_rag = {"case_data": scenario["scenario_data"]}
+        similar = rag.find_similar_scenarios(scenario_for_rag)
         print(f"   ✅ Found {len(similar)} similar scenarios")
         
         # Test agents (without API calls)
@@ -76,7 +78,8 @@ def test_basic_workflow():
         
         # Test RAG retrieval
         rag = RAGMemorySystem()
-        similar_scenarios = rag.find_similar_scenarios(scenario["scenario_data"])
+        scenario_for_rag = {"case_data": scenario["scenario_data"]}
+        similar_scenarios = rag.find_similar_scenarios(scenario_for_rag)
         
         if similar_scenarios:
             # Test pattern extraction

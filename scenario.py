@@ -252,4 +252,4 @@ def plot_user_setup(bs_pos, ris_pos, users, snr_req, snr_ach, csi_conditions, ti
     plt.savefig(f"plots/{case_name}_user_setup.png", dpi=300, bbox_inches='tight')
     plt.close()
 
-run_cases_and_plot(CASES, SIM_SETTINGS)
+#run_cases_and_plot(CASES, SIM_SETTINGS)
