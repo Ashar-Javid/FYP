@@ -20,7 +20,15 @@ FRAMEWORK_CONFIG = {
     "results_dir": "results",
     "plots_dir": "plots",
     "logs_dir": "logs",
-    "metrics_dir": "metrics"
+    "metrics_dir": "metrics",
+    # Experimental multi-run algorithm comparison settings (currently OFF)
+    # When enabled, the framework (future enhancement) will run each algorithm
+    # multiple times (e.g., 3) and aggregate mean/std ΔSNR statistics.
+    # This is documented in README but not yet active in the execution flow.
+    "algorithm_comparison_multi_run": {
+        "enabled": False,          # Keep disabled as requested
+        "runs": 3                  # Default number of runs when enabled
+    }
 }
 
 # RAG Configuration

@@ -265,24 +265,101 @@ class AlgorithmTool:
         return final_snrs
 
     def run_algorithm_comparison(self, scenario_data: Dict[str, Any], bs_power_dBm: float) -> Dict[str, Dict[int, float]]:
-        """Run all implemented algorithms plus a random baseline on full user set.
-        Returns mapping algorithm_name -> {user_id: final_snr}.
+        """Run all implemented algorithms plus a random baseline.
+        Supports experimental multi-run mode (mean/std of Δ SNR) if enabled in FRAMEWORK_CONFIG.
+
+        Return format (single-run mode / default):
+            { algo_full_name: { user_id: final_snr }, ... , 'random_baseline': {...} }
+
+        Return format (multi-run mode):
+            {
+              '_multi_run': True,
+              'runs': <int>,
+              'mean_delta': { short_label: {user_id: mean_delta_snr} },
+              'std_delta':  { short_label: {user_id: std_delta_snr} },
+              'raw_delta_runs': { short_label: [ {user_id: delta_snr}, ... per run ] },
+              'required_snr': { user_id: req_snr },
+              'labels_map': { original_algo_key: short_label, ... },
+              'random_baseline_mean_delta': {user_id: mean_delta},
+              'random_baseline_std_delta': {user_id: std_delta}
+            }
         """
-        user_ids = [u["id"] for u in scenario_data["scenario_data"]["users"]]
-        algorithms = ["gradient_descent_adam_multi", "manifold_optimization_adam_multi", "alternating_optimization_multi"]
-        results = {}
-        for algo_full in algorithms:
-            try:
-                res = self.execute_algorithm(algo_full, scenario_data, user_ids, bs_power_dBm)
-                results[algo_full] = res.get("final_snrs", {})
-            except Exception as e:
-                results[algo_full] = {uid: np.nan for uid in user_ids}
-        # Random baseline
-        baseline = {}
-        for u in scenario_data["scenario_data"]["users"]:
-            baseline[u["id"]] = u["achieved_snr_dB"] + np.random.uniform(0, 3)  # small random gain
-        results["random_baseline"] = baseline
-        return results
+        multi_cfg = FRAMEWORK_CONFIG.get("algorithm_comparison_multi_run", {})
+        multi_enabled = bool(multi_cfg.get("enabled", False))
+        runs = int(multi_cfg.get("runs", 3)) if multi_enabled else 1
+
+        # Scenario info
+        users_struct = scenario_data["scenario_data"]["users"]
+        user_ids = [u["id"] for u in users_struct]
+        req_snr_map = {u["id"]: u.get("req_snr_dB", 0.0) for u in users_struct}
+
+        algorithms = [
+            ("gradient_descent_adam_multi", "GD"),
+            ("manifold_optimization_adam_multi", "Manifold"),
+            ("alternating_optimization_multi", "AO")
+        ]
+
+        if not multi_enabled:
+            # Legacy single-run path (returns absolute final SNRs mapping)
+            results = {}
+            for algo_full, _short in algorithms:
+                try:
+                    res = self.execute_algorithm(algo_full, scenario_data, user_ids, bs_power_dBm)
+                    results[algo_full] = res.get("final_snrs", {})
+                except Exception:
+                    results[algo_full] = {uid: np.nan for uid in user_ids}
+            # Random baseline (absolute final SNR approximation)
+            baseline = {}
+            for u in users_struct:
+                baseline[u["id"]] = u["achieved_snr_dB"] + np.random.uniform(0, 3)
+            results["random_baseline"] = baseline
+            return results
+
+        # Multi-run statistical path (produce delta SNR stats)
+        mean_delta = {}
+        std_delta = {}
+        raw_delta_runs = {}
+        labels_map = {}
+
+        for algo_full, short_lbl in algorithms:
+            labels_map[algo_full] = short_lbl
+            per_run_deltas = []
+            for _ in range(runs):
+                try:
+                    res = self.execute_algorithm(algo_full, scenario_data, user_ids, bs_power_dBm)
+                    final_snrs = res.get("final_snrs", {})
+                except Exception:
+                    final_snrs = {uid: np.nan for uid in user_ids}
+                deltas = {uid: (final_snrs.get(uid, np.nan) - req_snr_map[uid]) for uid in user_ids}
+                per_run_deltas.append(deltas)
+            # Compute mean/std per user
+            mean_delta[short_lbl] = {uid: float(np.nanmean([run[uid] for run in per_run_deltas])) for uid in user_ids}
+            std_delta[short_lbl] = {uid: float(np.nanstd([run[uid] for run in per_run_deltas], ddof=0)) for uid in user_ids}
+            raw_delta_runs[short_lbl] = per_run_deltas
+
+        # Random baseline multi-run
+        rb_runs = []
+        for _ in range(runs):
+            run = {}
+            for u in users_struct:
+                init = u["achieved_snr_dB"]
+                final = init + np.random.uniform(0, 3)
+                run[u["id"]] = final - req_snr_map[u["id"]]
+            rb_runs.append(run)
+        random_mean = {uid: float(np.nanmean([run[uid] for run in rb_runs])) for uid in user_ids}
+        random_std = {uid: float(np.nanstd([run[uid] for run in rb_runs], ddof=0)) for uid in user_ids}
+
+        return {
+            '_multi_run': True,
+            'runs': runs,
+            'mean_delta': mean_delta,
+            'std_delta': std_delta,
+            'raw_delta_runs': raw_delta_runs,
+            'required_snr': req_snr_map,
+            'labels_map': labels_map,
+            'random_baseline_mean_delta': random_mean,
+            'random_baseline_std_delta': random_std
+        }
 
 
 class PowerControlTool:
@@ -560,44 +637,98 @@ class VisualizationTool:
         plt.close()
         return save_path
 
-    def plot_algorithm_comparison(self, scenario_data: Dict[str, Any], comparison_results: Dict[str, Dict[int, float]], save_path: str = None, agent_final_snrs: Optional[Dict[int, float]] = None) -> Optional[str]:
-        """Create grouped bar chart of per-user final SNRs across algorithms (including random baseline)
-        plus the agent's actual final run result if provided.
-        """
+        def plot_algorithm_comparison(self, scenario_data: Dict[str, Any], comparison_results: Dict[str, Any], save_path: str = None, agent_final_snrs: Optional[Dict[int, float]] = None) -> Optional[str]:
+                """Plot per-user Δ SNR (final - required) across algorithms with compact labels.
+
+                Modes:
+                    1. Single-run (legacy): comparison_results maps algorithm -> absolute final SNRs.
+                         We convert to Δ SNR internally using scenario required SNRs.
+                    2. Multi-run (experimental): comparison_results contains '_multi_run': True with
+                         mean/std delta maps already computed for GD, Manifold, AO, Random.
+
+                Agent final results are added as a single-run delta (no error bars).
+                """
         if not comparison_results:
             return None
+
         users = scenario_data["scenario_data"]["users"]
         user_ids = [u["id"] for u in users]
-        algorithms = list(comparison_results.keys())
-        algorithms_sorted = [a for a in algorithms if a != 'random_baseline']
-        if 'random_baseline' in algorithms:
-            algorithms_sorted.append('random_baseline')
+        req_snrs = {u["id"]: u.get('req_snr_dB', 0.0) for u in users}
+
+        multi_run_mode = isinstance(comparison_results, dict) and comparison_results.get('_multi_run')
+
+        # Prepare data structures
+        algo_order = []
+        mean_delta_map = {}
+        std_delta_map = {}
+
+        if multi_run_mode:
+            mean_delta = comparison_results.get('mean_delta', {})
+            std_delta = comparison_results.get('std_delta', {})
+            labels_map = comparison_results.get('labels_map', {})
+            # Preserve order GD, Manifold, AO
+            for orig, short in labels_map.items():
+                algo_order.append(short)
+                mean_delta_map[short] = mean_delta.get(short, {})
+                std_delta_map[short] = std_delta.get(short, {})
+            # Random baseline
+            algo_order.append('Random')
+            mean_delta_map['Random'] = comparison_results.get('random_baseline_mean_delta', {})
+            std_delta_map['Random'] = comparison_results.get('random_baseline_std_delta', {uid: 0.0 for uid in user_ids})
+        else:
+            # Legacy path: convert absolute final SNRs to delta
+            for algo_full, per_user_abs in comparison_results.items():
+                if algo_full == 'random_baseline':
+                    short = 'Random'
+                else:
+                    if 'gradient_descent' in algo_full:
+                        short = 'GD'
+                    elif 'manifold' in algo_full:
+                        short = 'Manifold'
+                    elif 'alternating' in algo_full:
+                        short = 'AO'
+                    else:
+                        short = algo_full[:8]
+                algo_order.append(short)
+                deltas = {uid: per_user_abs.get(uid, np.nan) - req_snrs[uid] for uid in user_ids}
+                mean_delta_map[short] = deltas
+                std_delta_map[short] = {uid: 0.0 for uid in user_ids}
+
+        # Add agent final (single run delta)
+        agent_label = 'Agent'
+        agent_delta = {}
         if agent_final_snrs:
-            algorithms_sorted.append('agent_final')
-        num_algos = len(algorithms_sorted)
+            for uid in user_ids:
+                agent_delta[uid] = agent_final_snrs.get(uid, np.nan) - req_snrs[uid]
+            algo_order.append(agent_label)
+            mean_delta_map[agent_label] = agent_delta
+            std_delta_map[agent_label] = {uid: 0.0 for uid in user_ids}
+
+        num_algos = len(algo_order)
         x = np.arange(len(user_ids))
         width = 0.12 if num_algos > 6 else 0.15
 
         plt.figure(figsize=(max(10, 2*len(user_ids)), 6))
-        for i, algo in enumerate(algorithms_sorted):
-            if algo == 'agent_final':
-                vals = [agent_final_snrs.get(uid, np.nan) for uid in user_ids]
-                label = 'Agent Final'
+        for i, algo in enumerate(algo_order):
+            means = [mean_delta_map[algo].get(uid, np.nan) for uid in user_ids]
+            stds = [std_delta_map[algo].get(uid, 0.0) for uid in user_ids]
+            # Center offset
+            positions = x + (i - num_algos/2)*width + width/2
+            if multi_run_mode and algo not in ('Agent') and any(s > 1e-6 for s in stds):
+                plt.bar(positions, means, width, label=algo, alpha=0.85, yerr=stds, capsize=3)
             else:
-                vals = [comparison_results[algo].get(uid, np.nan) for uid in user_ids]
-                label = algo.replace('_adam_multi','').replace('_optimization','').replace('_multi','').replace('_',' ').title()
-            plt.bar(x + (i - num_algos/2)*width + width/2, vals, width, label=label, alpha=0.85)
+                plt.bar(positions, means, width, label=algo, alpha=0.85)
 
-        # Required SNR line(s)
-        req_snrs = [u.get('req_snr_dB', 0) for u in users]
-        plt.plot(x, req_snrs, 'k--', linewidth=1.2, label='Required SNR')
+        # Zero reference line (Δ SNR target boundary)
+        plt.axhline(0, color='k', linewidth=1.0, linestyle='--', alpha=0.7)
 
         plt.xticks(x, [f'U{uid}' for uid in user_ids])
-        plt.ylabel('Final SNR (dB)')
+        plt.ylabel('Δ SNR (dB)')
         plt.xlabel('Users')
-        plt.title('Per-User Final SNR: Algorithms vs Agent')
+        title_suffix = '' if not multi_run_mode else f" (Mean ± Std over {comparison_results.get('runs', 1)} runs)"
+        plt.title(f'Per-User Δ SNR: Algorithms vs Agent{title_suffix}')
         plt.grid(axis='y', alpha=0.25)
-        plt.legend(ncol=2, fontsize=8)
+        plt.legend(ncol=3 if num_algos > 6 else 2, fontsize=8)
         plt.tight_layout()
         if save_path is None:
             save_path = os.path.join(self.plots_dir, f'algorithm_comparison_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')

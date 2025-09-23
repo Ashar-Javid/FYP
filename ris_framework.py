@@ -14,7 +14,7 @@ from typing import Dict, List, Any, Optional
 from config import FRAMEWORK_CONFIG, ensure_directories, load_framework_memory, save_framework_memory
 from tools import ScenarioTool, AlgorithmTool, PowerControlTool, MemoryTool, VisualizationTool
 from agents import CoordinatorAgent, EvaluatorAgent
-from metrics_logger import MetricsLogger
+from logger import MetricsLogger  # unified logger
 
 
 class RISOptimizationFramework:

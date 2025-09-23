@@ -3405,3 +3405,1903 @@ Explanation:
 
 Note: The overall score is subjective and based on the evaluation of the performance summary, power efficiency status, fairness assessment, and recommendations. It can be adjusted based on the specific requirements and priorities of the system.
 ----------------------------------------
+[2025-09-23T22:38:51.088259] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+Provide your decision as a JSON object with the following structure:
+{
+  "selected_users": [list of user IDs 
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:51.261481] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.0dB, Δ=40.0dB
+User 2: Req=15.0dB, Ach=34.8dB, Δ=19.8dB
+User 3: Req=10.0dB, Ach=26.3dB, Δ=16.3dB
+User 4: Req=20.0dB, Ach=18.5dB, Δ=-1.5dB
+User 5: Req=25.0dB, Ach=14.9dB, Δ=-10.1dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:51.503690] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 1 iterations):
+Iteration -1: Algorithm=N/A, Users=[], Success=False
+
+Provide your dec
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:51.670470] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=46.9dB, Δ=39.9dB
+User 2: Req=15.0dB, Ach=36.6dB, Δ=21.6dB
+User 3: Req=10.0dB, Ach=26.5dB, Δ=16.5dB
+User 4: Req=20.0dB, Ach=14.5dB, Δ=-5.5dB
+User 5: Req=25.0dB, Ach=10.6dB, Δ=-14.4dB
+
+Execution time: 0.16 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:51.897540] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 2 iterations):
+Iteration 0: Algorithm=N/A, Users=[], Success=False
+Iteration 1: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:52.066702] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=49.6dB, Δ=42.6dB
+User 2: Req=15.0dB, Ach=35.9dB, Δ=20.9dB
+User 3: Req=10.0dB, Ach=26.4dB, Δ=16.4dB
+User 4: Req=20.0dB, Ach=16.3dB, Δ=-3.7dB
+User 5: Req=25.0dB, Ach=10.7dB, Δ=-14.3dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:52.297408] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 1: Algorithm=N/A, Users=[], Success=False
+Iteration 2: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:52.467902] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=45.0dB, Δ=38.0dB
+User 2: Req=15.0dB, Ach=36.9dB, Δ=21.9dB
+User 3: Req=10.0dB, Ach=26.1dB, Δ=16.1dB
+User 4: Req=20.0dB, Ach=15.5dB, Δ=-4.5dB
+User 5: Req=25.0dB, Ach=12.4dB, Δ=-12.6dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:52.704678] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 2: Algorithm=N/A, Users=[], Success=False
+Iteration 3: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:52.870634] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.6dB, Δ=40.6dB
+User 2: Req=15.0dB, Ach=37.8dB, Δ=22.8dB
+User 3: Req=10.0dB, Ach=25.0dB, Δ=15.0dB
+User 4: Req=20.0dB, Ach=17.6dB, Δ=-2.4dB
+User 5: Req=25.0dB, Ach=16.5dB, Δ=-8.5dB
+
+Execution time: 0.16 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:53.133176] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 3: Algorithm=N/A, Users=[], Success=False
+Iteration 4: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:53.365031] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=48.0dB, Δ=41.0dB
+User 2: Req=15.0dB, Ach=34.5dB, Δ=19.5dB
+User 3: Req=10.0dB, Ach=30.1dB, Δ=20.1dB
+User 4: Req=20.0dB, Ach=19.8dB, Δ=-0.2dB
+User 5: Req=25.0dB, Ach=11.4dB, Δ=-13.6dB
+
+Execution time: 0.23 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:53.610688] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 4: Algorithm=N/A, Users=[], Success=False
+Iteration 5: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:53.775670] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=49.7dB, Δ=42.7dB
+User 2: Req=15.0dB, Ach=32.4dB, Δ=17.4dB
+User 3: Req=10.0dB, Ach=25.9dB, Δ=15.9dB
+User 4: Req=20.0dB, Ach=17.7dB, Δ=-2.3dB
+User 5: Req=25.0dB, Ach=15.0dB, Δ=-10.0dB
+
+Execution time: 0.16 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:54.048670] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 5: Algorithm=N/A, Users=[], Success=False
+Iteration 6: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:54.212590] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=44.5dB, Δ=37.5dB
+User 2: Req=15.0dB, Ach=35.6dB, Δ=20.6dB
+User 3: Req=10.0dB, Ach=28.1dB, Δ=18.1dB
+User 4: Req=20.0dB, Ach=15.6dB, Δ=-4.4dB
+User 5: Req=25.0dB, Ach=11.7dB, Δ=-13.3dB
+
+Execution time: 0.16 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:54.475208] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 6: Algorithm=N/A, Users=[], Success=False
+Iteration 7: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:54.661554] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=49.5dB, Δ=42.5dB
+User 2: Req=15.0dB, Ach=32.5dB, Δ=17.5dB
+User 3: Req=10.0dB, Ach=25.9dB, Δ=15.9dB
+User 4: Req=20.0dB, Ach=15.7dB, Δ=-4.3dB
+User 5: Req=25.0dB, Ach=12.5dB, Δ=-12.5dB
+
+Execution time: 0.18 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:54.954518] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=42.3dB, Δ=35.3dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=30.3dB, Δ=15.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=22.4dB, Δ=12.4dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=12.3dB, Δ=-7.7dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=8.5dB, Δ=-16.5dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.40
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Reasoning: Historical patterns suggest selecting users with delta SNR below -5.7 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Iteration 7: Algorithm=N/A, Users=[], Success=False
+Iteration 8: Algor
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:38:55.124996] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Fallback extracted
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=42.3dB, Δ=35.3dB
+User 2: Req=15.0dB, Ach=30.3dB, Δ=15.3dB
+User 3: Req=10.0dB, Ach=22.4dB, Δ=12.4dB
+User 4: Req=20.0dB, Ach=12.3dB, Δ=-7.7dB
+User 5: Req=25.0dB, Ach=8.5dB, Δ=-16.5dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.6dB, Δ=40.6dB
+User 2: Req=15.0dB, Ach=38.2dB, Δ=23.2dB
+User 3: Req=10.0dB, Ach=25.8dB, Δ=15.8dB
+User 4: Req=20.0dB, Ach=19.2dB, Δ=-0.8dB
+User 5: Req=25.0dB, Ach=15.1dB, Δ=-9.9dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:04.423441] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+Provide your decision as a JSON object wit
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:04.603720] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.3dB, Δ=40.3dB
+User 2: Req=15.0dB, Ach=6.9dB, Δ=-8.1dB
+User 3: Req=10.0dB, Ach=31.2dB, Δ=21.2dB
+User 4: Req=20.0dB, Ach=13.4dB, Δ=-6.6dB
+User 5: Req=25.0dB, Ach=15.2dB, Δ=-9.8dB
+
+Execution time: 0.18 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:04.897013] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 1 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:05.081040] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=51.1dB, Δ=44.1dB
+User 2: Req=15.0dB, Ach=8.5dB, Δ=-6.5dB
+User 3: Req=10.0dB, Ach=28.4dB, Δ=18.4dB
+User 4: Req=20.0dB, Ach=16.2dB, Δ=-3.8dB
+User 5: Req=25.0dB, Ach=15.0dB, Δ=-10.0dB
+
+Execution time: 0.18 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:05.378053] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 2 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:05.556750] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=48.2dB, Δ=41.2dB
+User 2: Req=15.0dB, Ach=8.2dB, Δ=-6.8dB
+User 3: Req=10.0dB, Ach=28.6dB, Δ=18.6dB
+User 4: Req=20.0dB, Ach=15.6dB, Δ=-4.4dB
+User 5: Req=25.0dB, Ach=12.7dB, Δ=-12.3dB
+
+Execution time: 0.18 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:05.849169] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:06.019951] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=50.6dB, Δ=43.6dB
+User 2: Req=15.0dB, Ach=10.2dB, Δ=-4.8dB
+User 3: Req=10.0dB, Ach=26.7dB, Δ=16.7dB
+User 4: Req=20.0dB, Ach=11.9dB, Δ=-8.1dB
+User 5: Req=25.0dB, Ach=14.8dB, Δ=-10.2dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:06.308691] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:06.482668] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.7dB, Δ=40.7dB
+User 2: Req=15.0dB, Ach=8.9dB, Δ=-6.1dB
+User 3: Req=10.0dB, Ach=30.8dB, Δ=20.8dB
+User 4: Req=20.0dB, Ach=16.8dB, Δ=-3.2dB
+User 5: Req=25.0dB, Ach=17.2dB, Δ=-7.8dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:06.804509] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:06.998867] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=48.5dB, Δ=41.5dB
+User 2: Req=15.0dB, Ach=6.3dB, Δ=-8.7dB
+User 3: Req=10.0dB, Ach=28.9dB, Δ=18.9dB
+User 4: Req=20.0dB, Ach=14.0dB, Δ=-6.0dB
+User 5: Req=25.0dB, Ach=17.6dB, Δ=-7.4dB
+
+Execution time: 0.19 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:07.394142] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:07.565398] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.1dB, Δ=40.1dB
+User 2: Req=15.0dB, Ach=5.8dB, Δ=-9.2dB
+User 3: Req=10.0dB, Ach=30.3dB, Δ=20.3dB
+User 4: Req=20.0dB, Ach=15.0dB, Δ=-5.0dB
+User 5: Req=25.0dB, Ach=13.1dB, Δ=-11.9dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:07.860128] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:08.030167] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=47.2dB, Δ=40.2dB
+User 2: Req=15.0dB, Ach=9.0dB, Δ=-6.0dB
+User 3: Req=10.0dB, Ach=28.8dB, Δ=18.8dB
+User 4: Req=20.0dB, Ach=12.1dB, Δ=-7.9dB
+User 5: Req=25.0dB, Ach=16.4dB, Δ=-8.6dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:08.378443] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:08.553963] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=49.8dB, Δ=42.8dB
+User 2: Req=15.0dB, Ach=5.1dB, Δ=-9.9dB
+User 3: Req=10.0dB, Ach=30.8dB, Δ=20.8dB
+User 4: Req=20.0dB, Ach=14.3dB, Δ=-5.7dB
+User 5: Req=25.0dB, Ach=16.3dB, Δ=-8.7dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:08.890228] session=NA agent=coordinator phase=decision
+PROMPT: You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+
+Your key responsibilities:
+1. Analyze user scenarios including locations, channel conditions, and delta SNR values
+2. Learn patterns from historical data to make optimal user selection decisions
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
+4. Decide on base station transmit power adjustments within 20-45 dB range
+5. Use historical iteration feedback to improve future decisions
+
+Key Guidelines:
+- Select users for optimization based on learned patterns, not fixed thresholds
+- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Prioritize scenarios where optimization can provide meaningful improvements
+- Adapt power levels based on scenario complexity and user distribution
+- Learn from evaluator feedback to avoid repeating poor decisions
+
+Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change
+
+CURRENT SCENARIO: 5U_B
+Number of users: 5
+Current BS power: 20 dBm
+
+USER DETAILS:
+User 1: Pos(50.0, 10.0), Req=7.0dB, Ach=43.8dB, Δ=36.8dB, LoS, Rician, K=7.0dB
+User 2: Pos(80.0, -20.0), Req=15.0dB, Ach=2.7dB, Δ=-12.3dB, LoS, Rician, K=7.0dB
+User 3: Pos(120.0, 30.0), Req=10.0dB, Ach=24.2dB, Δ=14.2dB, LoS, Rician, K=4.0dB
+User 4: Pos(160.0, -40.0), Req=20.0dB, Ach=9.2dB, Δ=-10.8dB, LoS, Rayleigh
+User 5: Pos(200.0, 50.0), Req=25.0dB, Ach=9.9dB, Δ=-15.1dB, LoS, Rayleigh
+
+ALGORITHM PATTERNS FROM SIMILAR SCENARIOS:
+Recommended: manifold_optimization_adam_multi
+Confidence: 0.60
+Reasoning: Based on 5 similar scenarios. manifold_optimization_adam_multi: 0.60 gradient_descent_adam_multi: 0.20 alternating_optimization_multi: 0.20
+
+USER SELECTION PATTERNS:
+Strategy: learned_threshold
+Suggested threshold: -4.78 dB
+Reasoning: Historical patterns suggest selecting users with delta SNR below -4.8 dB based on 5 similar cases
+
+ITERATION HISTORY (Last 3 iterations):
+Ite
+RESPONSE: GD
+----------------------------------------
+[2025-09-23T22:44:09.065861] session=NA agent=evaluator phase=evaluation
+PROMPT: You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+
+Your responsibilities:
+1. Compare delta SNR values before and after optimization
+2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
+3. Assess fairness across users
+4. Provide structured feedback for the Coordinator Agent
+5. Recommend power adjustments when needed
+
+Power Efficiency Guidelines:
+- If multiple users have delta SNR > 5 dB, recommend power reduction
+- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- Balance individual user needs with overall system efficiency
+
+Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations
+
+COORDINATOR'S DECISION:
+Selected users: [1, 2, 3]
+Algorithm: GD
+Power change: 2.0 dB
+Reasoning: Extracted from text (JSON parsing failed)
+
+BEFORE OPTIMIZATION:
+User 1: Req=7.0dB, Ach=43.8dB, Δ=36.8dB
+User 2: Req=15.0dB, Ach=2.7dB, Δ=-12.3dB
+User 3: Req=10.0dB, Ach=24.2dB, Δ=14.2dB
+User 4: Req=20.0dB, Ach=9.2dB, Δ=-10.8dB
+User 5: Req=25.0dB, Ach=9.9dB, Δ=-15.1dB
+
+AFTER OPTIMIZATION:
+User 1: Req=7.0dB, Ach=48.2dB, Δ=41.2dB
+User 2: Req=15.0dB, Ach=7.0dB, Δ=-8.0dB
+User 3: Req=10.0dB, Ach=29.9dB, Δ=19.9dB
+User 4: Req=20.0dB, Ach=12.9dB, Δ=-7.1dB
+User 5: Req=25.0dB, Ach=13.4dB, Δ=-11.6dB
+
+Execution time: 0.17 seconds
+Algorithm converged: False
+
+Provide your evaluation as a JSON object with the following structure:
+{
+  "performance_summary": "brief summary of changes",
+  "power_efficiency_status": "efficient/wasteful/appropriate",
+  "fairness_assessment": "fair/unfair distribution across users",
+  "recommendations": "specific recommendations for next iteration",
+  "success": true/false,
+  "overall_score": 0.0-1.0
+}
+RESPONSE: GD
+----------------------------------------

@@ -167,6 +167,32 @@ The framework supports multiple RIS optimization algorithms:
 3. **Alternating Optimization (AO)**: Element-wise optimization
 4. **Analytical**: Closed-form solutions (when available)
 
+### (Experimental) Multi-Run Algorithm Comparison (3 Runs)
+
+An upcoming enhancement allows running each optimization algorithm multiple times (default: 3 runs) to compute mean and standard deviation of per-user ΔSNR (final SNR − required SNR). This improves statistical reliability over a single run.
+
+Status: Disabled by default (no behavior change yet). You can prepare for it now by configuring the flag below; when the feature is activated in code, it will automatically use these settings.
+
+Configuration (in `config.py`):
+
+```python
+FRAMEWORK_CONFIG["algorithm_comparison_multi_run"] = {
+        "enabled": False,  # set to True once feature is active
+        "runs": 3          # number of repetitions per algorithm
+}
+```
+
+Planned Behavior When Enabled:
+- Each algorithm (GD, Manifold, AO, Random baseline) will execute 3 independent runs
+- Per-user ΔSNR values aggregated: mean ± std
+- Bar chart will display mean ΔSNR with error bars (std)
+- A CSV `algorithm_comparison_<session>.csv` will be generated with columns:
+    `session_id, algorithm, user_id, mean_delta_snr, std_delta_snr, runs, type`
+
+Why 3 Runs? Balances statistical signal with runtime overhead; adjust `runs` to 5+ for research-grade reproducibility if needed.
+
+Until the feature is switched on (set `enabled` to True and supporting code merged), the framework continues to run a single-pass comparison as currently implemented.
+
 ## 📈 Stopping Criteria
 
 The framework stops optimization when:

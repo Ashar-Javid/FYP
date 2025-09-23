@@ -8,15 +8,22 @@ import os
 import numpy as np
 from typing import Dict, List, Any, Optional
 
+# --- Cerebras SDK Initialization ---
+# We attempt import and provide detailed diagnostics if it fails.
+CEREBRAS_SDK_AVAILABLE = False
 try:
-    from cerebras.cloud.sdk import Cerebras
+    # Some versions expose client under cerebras.cloud.sdk, others under cerebras.cloud
+    try:
+        from cerebras.cloud.sdk import Cerebras  # type: ignore
+    except ImportError:
+        from cerebras.cloud import Cerebras  # type: ignore
     CEREBRAS_SDK_AVAILABLE = True
-except ImportError:
-    CEREBRAS_SDK_AVAILABLE = False
-    print("⚠️  Cerebras SDK not available. Using fallback mode.")
+except Exception as _e:  # broad to trap unexpected runtime issues
+    print(f"⚠️  Cerebras SDK import failed ({type(_e).__name__}: {_e}). Falling back to heuristic mode.")
+
 
 from config import CEREBRAS_API_KEY, CEREBRAS_MODEL, COORDINATOR_CONFIG, EVALUATOR_CONFIG
-from llm_logger import log_llm_response
+from logger import log_llm_response  # unified logger
 from rag_memory import RAGMemorySystem
 
 
@@ -31,8 +38,15 @@ class CerebrasClient:
         self.max_tokens = max_tokens
         
         if CEREBRAS_SDK_AVAILABLE:
-            self.client = Cerebras(api_key=CEREBRAS_API_KEY)
-            self.use_sdk = True
+            # Ensure API key is also in environment for SDK consistency
+            if not os.environ.get("CEREBRAS_API_KEY") and CEREBRAS_API_KEY:
+                os.environ["CEREBRAS_API_KEY"] = CEREBRAS_API_KEY
+            try:
+                self.client = Cerebras(api_key=CEREBRAS_API_KEY)
+                self.use_sdk = True
+            except Exception as e:
+                print(f"⚠️  Cerebras client initialization failed ({e}). Using fallback mode.")
+                self.use_sdk = False
         else:
             self.use_sdk = False
     
@@ -52,7 +66,16 @@ class CerebrasClient:
                     temperature=self.temperature,
                     max_tokens=self.max_tokens
                 )
-                return response.choices[0].message.content
+                # Defensive access pattern (SDK versions may differ)
+                try:
+                    return response.choices[0].message.content  # new style
+                except Exception:
+                    # Fallback to potential older structure
+                    if hasattr(response, 'choices') and response.choices:
+                        first = response.choices[0]
+                        if hasattr(first, 'text'):
+                            return first.text
+                    raise RuntimeError("Unexpected Cerebras response structure")
                 
             except Exception as e:
                 print(f"Cerebras SDK Error: {e}")
