@@ -76,7 +76,7 @@ class CoordinatorAgent:
     """
     
     def __init__(self):
-        self.llm = CerebrasLLM(
+        self.client = CerebrasClient(
             temperature=COORDINATOR_CONFIG["temperature"],
             max_tokens=COORDINATOR_CONFIG["max_tokens"]
         )
@@ -104,7 +104,7 @@ class CoordinatorAgent:
         prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your decision as a JSON object with the following structure:\n{{\n  \"selected_users\": [list of user IDs to optimize],\n  \"selected_algorithm\": \"algorithm_name\",\n  \"base_station_power_change\": \"power adjustment in dB (e.g., '+3.0' or '-2.5')\",\n  \"reasoning\": \"explanation of your decisions\"\n}}"
         
         try:
-            response = self.llm(prompt)
+            response = self.client.call(prompt, self.system_prompt)
             decision = self._parse_decision_response(response)
             
             # Add pattern information to decision
@@ -231,7 +231,7 @@ class EvaluatorAgent:
     """
     
     def __init__(self):
-        self.llm = CerebrasLLM(
+        self.client = CerebrasClient(
             temperature=EVALUATOR_CONFIG["temperature"],
             max_tokens=EVALUATOR_CONFIG["max_tokens"]
         )
@@ -249,7 +249,7 @@ class EvaluatorAgent:
         prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your evaluation as a JSON object with the following structure:\n{{\n  \"performance_summary\": \"brief summary of changes\",\n  \"power_efficiency_status\": \"efficient/wasteful/appropriate\",\n  \"fairness_assessment\": \"fair/unfair distribution across users\",\n  \"recommendations\": \"specific recommendations for next iteration\",\n  \"success\": true/false,\n  \"overall_score\": 0.0-1.0\n}}"
         
         try:
-            response = self.llm(prompt)
+            response = self.client.call(prompt, self.system_prompt)
             evaluation = self._parse_evaluation_response(response)
             
             # Add quantitative metrics
@@ -380,9 +380,6 @@ class EvaluatorAgent:
             "is_fallback": True
         }
 
-
-# Import numpy for calculations
-import numpy as np
 
 # Export agents
 __all__ = ['CoordinatorAgent', 'EvaluatorAgent']
