@@ -15,12 +15,25 @@ CEREBRAS_MODEL = "llama3.1-8b"
 FRAMEWORK_CONFIG = {
     "max_iterations": 10,
     "power_range_dB": [20, 45],
-    "convergence_tolerance": 0.1,
+    "convergence_tolerance": 0.5, # in dB
     "memory_file": "framework_memory.json",
     "results_dir": "results",
     "plots_dir": "plots",
     "logs_dir": "logs",
     "metrics_dir": "metrics",
+        # Memory controls
+        "reset_framework_memory": False,  # if True, reinitialize memory file at session start
+        # Decision & stopping controls
+        "rag_conf_threshold": 0.7,     # RAG confidence needed to skip LLM
+        "min_iterations_before_stop": 3,  # enforce at least N iterations even if success early
+        "overall_score_stop_threshold": 0.8,  # evaluator score to count as overall_success
+        "require_power_efficiency_for_stop": True,  # require power status to be efficient/appropriate when checking SNR condition
+        "power_efficiency_ok_values": ["efficient", "appropriate"],
+        # Logging controls
+        "log_level": "info",            # info|debug (future use)
+        "log_llm_verbose": False,        # if True, logs full prompts/responses
+        # Scenario selection
+        "default_scenario": "5U_B",     # One of: 3U, 4U, 5U_A, 5U_B, 5U_C
     # Experimental multi-run algorithm comparison settings (currently OFF)
     # When enabled, the framework (future enhancement) will run each algorithm
     # multiple times (e.g., 3) and aggregate mean/std ΔSNR statistics.
@@ -34,12 +47,12 @@ FRAMEWORK_CONFIG = {
 # RAG Configuration
 RAG_CONFIG = {
     "embedding_model": "all-MiniLM-L6-v2",
-    "similarity_threshold": 0.7,
+    "similarity_threshold": 0.75,
     "max_retrieved_scenarios": 5,
     "feature_weights": {
-        "user_locations": 0.3,
+        "user_locations": 0.5,
         "channel_conditions": 0.3,
-        "delta_snr_values": 0.4
+        "delta_snr_values": 0.2
     }
 }
 
@@ -52,16 +65,20 @@ COORDINATOR_CONFIG = {
 Your key responsibilities:
 1. Analyze user scenarios including locations, channel conditions, and delta SNR values
 2. Learn patterns from historical data to make optimal user selection decisions
-3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO}
-4. Decide on base station transmit power adjustments within 20-45 dB range
+3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO} and using memory 
+4. Decide on base station transmit power adjustments within 20-45 dB range, but increase power only as a last resort, while decreasing power when feasible and when delta SNR of users is positive
 5. Use historical iteration feedback to improve future decisions
 
 Key Guidelines:
 - Select users for optimization based on learned patterns, not fixed thresholds
 - Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
+- Users Having negative delta SNR are high priority, and those with high positive delta SNR are never to be selected
+- Dont increase power if a few users have very high delta SNR, instead select users with negative delta SNR and focus beam towards them by changing algorithms
+- Choose the optimization algorithm that best fits the scenario complexity based on historical success
 - Prioritize scenarios where optimization can provide meaningful improvements
-- Adapt power levels based on scenario complexity and user distribution
-- Learn from evaluator feedback to avoid repeating poor decisions
+- Adapt power levels based on scenario complexity and user distribution, but as a last resort
+- Learn from evaluator feedback to avoid repeating poor decision
+- Stop making changes if the system is stable delta SNR for all users is positive and close to zero
 
 Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change"""
 }
@@ -73,7 +90,7 @@ EVALUATOR_CONFIG = {
     "system_prompt": """You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
 
 Your responsibilities:
-1. Compare delta SNR values before and after optimization
+1. Compare delta SNR values before and after optimization (before optimization should be updated for every run)
 2. Evaluate power efficiency - flag if users have excessively positive delta SNR (wasted power)
 3. Assess fairness across users
 4. Provide structured feedback for the Coordinator Agent

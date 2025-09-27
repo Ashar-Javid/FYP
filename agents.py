@@ -22,7 +22,7 @@ except Exception as _e:  # broad to trap unexpected runtime issues
     print(f"⚠️  Cerebras SDK import failed ({type(_e).__name__}: {_e}). Falling back to heuristic mode.")
 
 
-from config import CEREBRAS_API_KEY, CEREBRAS_MODEL, COORDINATOR_CONFIG, EVALUATOR_CONFIG
+from config import CEREBRAS_API_KEY, CEREBRAS_MODEL, COORDINATOR_CONFIG, EVALUATOR_CONFIG, FRAMEWORK_CONFIG
 from logger import log_llm_response  # unified logger
 from rag_memory import RAGMemorySystem
 
@@ -130,6 +130,36 @@ class CoordinatorAgent:
             scenario_data, algorithm_patterns, user_selection_patterns, iteration_history
         )
         
+        # If RAG is confident enough, bypass LLM and produce a direct decision
+        try:
+            rag_threshold = FRAMEWORK_CONFIG.get("rag_conf_threshold", 0.7)
+            if algorithm_patterns.get("confidence", 0.0) >= rag_threshold:
+                scenario = scenario_data["scenario_data"]
+                threshold = user_selection_patterns.get("threshold", 0.0)
+                strategy = user_selection_patterns.get("selection_strategy", "learned_threshold")
+                if strategy == "learned_threshold":
+                    selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < threshold]
+                    if not selected_users:
+                        selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
+                else:
+                    selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
+                decision = {
+                    "selected_users": selected_users,
+                    "selected_algorithm": algorithm_patterns.get("recommended_algorithm", "manifold"),
+                    "base_station_power_change": "+2.0",
+                    "power_change_dB": 2.0,
+                    "reasoning": f"RAG-direct: high confidence {algorithm_patterns.get('confidence', 0):.2f}; "
+                                 f"strategy={strategy}, threshold={threshold:.2f}",
+                    "rag_direct": True,
+                    "algorithm_patterns": algorithm_patterns,
+                    "user_selection_patterns": user_selection_patterns,
+                    "similar_scenarios_count": len(similar_scenarios)
+                }
+                return decision
+        except Exception as _rag_direct_err:
+            # Fall through to LLM if anything unexpected occurs
+            pass
+
         # Get decision from LLM
         prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your decision as a JSON object with the following structure:\n{{\n  \"selected_users\": [list of user IDs to optimize],\n  \"selected_algorithm\": \"algorithm_name\",\n  \"base_station_power_change\": \"power adjustment in dB (e.g., '+3.0' or '-2.5')\",\n  \"reasoning\": \"explanation of your decisions\"\n}}"
         

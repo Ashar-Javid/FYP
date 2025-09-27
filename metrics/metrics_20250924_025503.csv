@@ -1,2 +1,0 @@
-session_id,iteration,timestamp,selected_users,algorithm,power_dBm,power_change_dB,success,overall_score,avg_delta_improvement,worst_user_improvement,users_satisfied_before,users_satisfied_after,satisfaction_improvement,power_waste_score,fairness_before,fairness_after,fairness_improvement,execution_time_s
-20250924_025503,1,2025-09-24T02:55:06.377967,1;2;3;4,manifold_optimization_adam_multi,25.0,5.0,True,0.9,4.574347812360611,2.1400571995673587,3,3,0,60.398923016311755,375.51351693403024,397.7274469024666,-22.21392996843639,1.9499778747558594

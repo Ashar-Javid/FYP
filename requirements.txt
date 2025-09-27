@@ -24,6 +24,3 @@ idna>=3.10
 annotated-types>=0.6.0
 pydantic-core>=2.33.0
 
-# Note: LangChain dependencies removed - framework now uses direct Cerebras SDK
-# Note: ML dependencies (scikit-learn, faiss-cpu, sentence-transformers) removed 
-#       - using simplified RAG with numerical similarity instead

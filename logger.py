@@ -72,7 +72,16 @@ def log_event(message: str, *, session_id: Optional[str] = None):
 
 
 def log_llm_response(agent: str, phase: str, prompt: str, response: str, session_id: Optional[str] = None):
-    """Structured LLM response logging (compatible with previous API)."""
+    """Structured LLM response logging (compatible with previous API).
+
+    When FRAMEWORK_CONFIG['log_llm_verbose'] is False, only a compact entry
+    (agent/phase + note) is logged without full prompt/response for cleaner logs.
+    """
+    verbose = bool(FRAMEWORK_CONFIG.get("log_llm_verbose", False))
+    if not verbose:
+        message = (f"agent={agent} phase={phase} LLM call logged (verbose=False): contents suppressed")
+        log_event(message, session_id=session_id)
+        return
     safe_prompt = _sanitize(prompt)[:2000]
     safe_response = _sanitize(response)
     divider = '-' * 40

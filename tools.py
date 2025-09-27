@@ -28,6 +28,30 @@ class ScenarioTool:
         self.available_scenarios = CASES
         self.sim_settings = SIM_SETTINGS
         
+    def get_scenario(self, name: str) -> Dict[str, Any]:
+        """Prepare a scenario by name (e.g., '3U','4U','5U_A','5U_B','5U_C')."""
+        if name not in self.available_scenarios:
+            raise ValueError(f"Unknown scenario '{name}'. Available: {list(self.available_scenarios.keys())}")
+        scenario = self.available_scenarios[name].copy()
+        # Generate current CSI for all users
+        for user in scenario["users"]:
+            csi_data = generate_csi(user, self.sim_settings["bs_coord"], 
+                                  self.sim_settings["ris_coord"], self.sim_settings)
+            current_snr = calculate_snr(csi_data["h_eff"], 
+                                      self.sim_settings["default_bs_power_dBm"],
+                                      self.sim_settings["noise_power_dBm"])
+            user.update({
+                "current_csi": csi_data,
+                "achieved_snr_dB": current_snr,
+                "delta_snr_dB": current_snr - user["req_snr_dB"]
+            })
+        return {
+            "scenario_name": name,
+            "scenario_data": scenario,
+            "sim_settings": self.sim_settings,
+            "timestamp": datetime.now().isoformat()
+        }
+
     def get_scenario_5ub(self) -> Dict[str, Any]:
         """
         Get the 5U_B scenario as specified.
@@ -507,6 +531,37 @@ class VisualizationTool:
     def __init__(self):
         ensure_directories()
         self.plots_dir = FRAMEWORK_CONFIG["plots_dir"]
+
+    def plot_selected_scenario_scatter(self, scenario_data: Dict[str, Any], save_path: str = None) -> Optional[str]:
+        """Compact scatter plot: BS, RIS, Users colored by Δ SNR status."""
+        if not scenario_data:
+            return None
+        scenario = scenario_data["scenario_data"]
+        sim_settings = scenario_data["sim_settings"]
+
+        bs_pos = sim_settings["bs_coord"][:2]
+        ris_pos = sim_settings["ris_coord"][:2]
+        plt.figure(figsize=(8,6))
+        plt.scatter(*bs_pos, marker='s', s=200, c='red', label='BS')
+        plt.scatter(*ris_pos, marker='^', s=200, c='blue', label='RIS')
+
+        for user in scenario["users"]:
+            x, y = user["coord"][0], user["coord"][1]
+            delta = user.get("delta_snr_dB", 0)
+            color = 'green' if delta >= 0 else ('orange' if delta >= -3 else 'red')
+            plt.scatter(x, y, c=color, s=90)
+            plt.text(x+1.5, y+1.5, f"U{user['id']}\nΔ {delta:.1f} dB", fontsize=8, color=color)
+
+        plt.title(f"Scenario {scenario_data.get('scenario_name','')} Setup")
+        plt.xlabel('X (m)'); plt.ylabel('Y (m)')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        if save_path is None:
+            save_path = os.path.join(self.plots_dir, f"scenario_scatter_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        return save_path
     
     def plot_iteration_progress(self, iteration_history: List[Dict[str, Any]], save_path: str = None) -> str:
         """Deprecated: legacy progress plot removed."""
@@ -583,12 +638,7 @@ class VisualizationTool:
           - Initial (pre-optimization) achieved SNR
           - Final (post-optimization) SNR from last iteration's algorithm_results.final_snrs
 
-        Parameters:
-            scenario_data: Original scenario structure returned by ScenarioTool (contains required & initial SNRs)
-            iteration_history: List of iteration result dicts (to obtain final_snrs from last iteration)
-            save_path: Optional explicit path for saving
-        Returns:
-            Path to saved plot or None if data insufficient.
+        Returns path or None if insufficient data.
         """
         if not scenario_data or not iteration_history:
             return None
@@ -612,15 +662,15 @@ class VisualizationTool:
         x = np.arange(len(user_ids))
         width = 0.25
 
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(11, 6))
         plt.bar(x - width, required_snrs, width, label='Required', color='#4C72B0', alpha=0.8)
         plt.bar(x, initial_snrs, width, label='Initial', color='#55A868', alpha=0.8)
-        plt.bar(x + width, final_snrs_ordered, width, label='Final', color='#C44E52', alpha=0.85)
+        plt.bar(x + width, final_snrs_ordered, width, label='Final', color='#C44E52', alpha=0.9)
 
         # Annotate improvements
         for i, (init, final) in enumerate(zip(initial_snrs, final_snrs_ordered)):
-            improvement = final - init
-            plt.text(x[i] + width, final + 0.3, f"+{improvement:.1f}dB", ha='center', va='bottom', fontsize=8, rotation=0)
+            imp_final = final - init
+            plt.text(x[i] + width, final + 0.3, f"+{imp_final:.1f}dB", ha='center', va='bottom', fontsize=8)
 
         plt.xticks(x, [f'U{uid}' for uid in user_ids])
         plt.ylabel('SNR (dB)')
@@ -637,17 +687,17 @@ class VisualizationTool:
         plt.close()
         return save_path
 
-        def plot_algorithm_comparison(self, scenario_data: Dict[str, Any], comparison_results: Dict[str, Any], save_path: str = None, agent_final_snrs: Optional[Dict[int, float]] = None) -> Optional[str]:
-                """Plot per-user Δ SNR (final - required) across algorithms with compact labels.
+    def plot_algorithm_comparison(self, scenario_data: Dict[str, Any], comparison_results: Dict[str, Any], save_path: str = None, agent_final_snrs: Optional[Dict[int, float]] = None) -> Optional[str]:
+        """Plot per-user Δ SNR (final - required) across algorithms with compact labels.
 
-                Modes:
-                    1. Single-run (legacy): comparison_results maps algorithm -> absolute final SNRs.
-                         We convert to Δ SNR internally using scenario required SNRs.
-                    2. Multi-run (experimental): comparison_results contains '_multi_run': True with
-                         mean/std delta maps already computed for GD, Manifold, AO, Random.
+        Modes:
+            1. Single-run (legacy): comparison_results maps algorithm -> absolute final SNRs.
+               We convert to Δ SNR internally using scenario required SNRs.
+            2. Multi-run (experimental): comparison_results contains '_multi_run': True with
+               mean/std delta maps already computed for GD, Manifold, AO, Random.
 
-                Agent final results are added as a single-run delta (no error bars).
-                """
+        Agent final results are added as a single-run delta (no error bars).
+        """
         if not comparison_results:
             return None
 
@@ -658,9 +708,9 @@ class VisualizationTool:
         multi_run_mode = isinstance(comparison_results, dict) and comparison_results.get('_multi_run')
 
         # Prepare data structures
-        algo_order = []
-        mean_delta_map = {}
-        std_delta_map = {}
+        algo_order: List[str] = []
+        mean_delta_map: Dict[str, Dict[int, float]] = {}
+        std_delta_map: Dict[str, Dict[int, float]] = {}
 
         if multi_run_mode:
             mean_delta = comparison_results.get('mean_delta', {})
@@ -696,7 +746,7 @@ class VisualizationTool:
 
         # Add agent final (single run delta)
         agent_label = 'Agent'
-        agent_delta = {}
+        agent_delta: Dict[int, float] = {}
         if agent_final_snrs:
             for uid in user_ids:
                 agent_delta[uid] = agent_final_snrs.get(uid, np.nan) - req_snrs[uid]
@@ -712,16 +762,13 @@ class VisualizationTool:
         for i, algo in enumerate(algo_order):
             means = [mean_delta_map[algo].get(uid, np.nan) for uid in user_ids]
             stds = [std_delta_map[algo].get(uid, 0.0) for uid in user_ids]
-            # Center offset
             positions = x + (i - num_algos/2)*width + width/2
-            if multi_run_mode and algo not in ('Agent') and any(s > 1e-6 for s in stds):
+            if multi_run_mode and algo != 'Agent' and any(s > 1e-6 for s in stds):
                 plt.bar(positions, means, width, label=algo, alpha=0.85, yerr=stds, capsize=3)
             else:
                 plt.bar(positions, means, width, label=algo, alpha=0.85)
 
-        # Zero reference line (Δ SNR target boundary)
         plt.axhline(0, color='k', linewidth=1.0, linestyle='--', alpha=0.7)
-
         plt.xticks(x, [f'U{uid}' for uid in user_ids])
         plt.ylabel('Δ SNR (dB)')
         plt.xlabel('Users')

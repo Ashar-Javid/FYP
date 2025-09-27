@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional
 # Import framework components
 from config import FRAMEWORK_CONFIG, ensure_directories, load_framework_memory, save_framework_memory
 from tools import ScenarioTool, AlgorithmTool, PowerControlTool, MemoryTool, VisualizationTool
+from logger import log_event
 from agents import CoordinatorAgent, EvaluatorAgent
 from logger import MetricsLogger  # unified logger
 
@@ -55,28 +56,59 @@ class RISOptimizationFramework:
         session_start_time = time.time()
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         metrics_logger = MetricsLogger(session_id)
-        
-        # Load scenario
-        self.current_scenario = self.scenario_tool.get_scenario_5ub()
+
+        # Optional: reset framework memory at session start
+        try:
+            if FRAMEWORK_CONFIG.get("reset_framework_memory", False):
+                fresh_memory = {
+                    "learned_patterns": [],
+                    "iteration_history": [],
+                    "successful_strategies": [],
+                    "failed_strategies": []
+                }
+                save_framework_memory(fresh_memory)
+                print("🧹 Framework memory reset as per config.")
+        except Exception as e:
+            print(f"⚠️  Could not reset framework memory: {e}")
+
+        # Load scenario (configurable)
+        scenario_name = FRAMEWORK_CONFIG.get("default_scenario", "5U_B")
+        if hasattr(self.scenario_tool, "get_scenario"):
+            self.current_scenario = self.scenario_tool.get_scenario(scenario_name)
+        else:
+            # Backward-compat: specific method for 5U_B
+            self.current_scenario = self.scenario_tool.get_scenario_5ub() if scenario_name == "5U_B" else self.scenario_tool.get_scenario_5ub()
         print(f"📊 Loaded scenario: {self.current_scenario['scenario_name']}")
-        
-        # Create initial scenario plot
-        initial_plot_path = self.scenario_tool.plot_scenario(
+        log_event(f"session start: scenario={self.current_scenario['scenario_name']}")
+
+        # Create per-session plots folder and use it for all plots
+        per_session_plots_dir = os.path.join(FRAMEWORK_CONFIG["plots_dir"], session_id)
+        os.makedirs(per_session_plots_dir, exist_ok=True)
+
+        # Create compact scenario scatter plot (replacing initial two-panel plot)
+        scatter_plot_path = self.viz_tool.plot_selected_scenario_scatter(
             self.current_scenario,
-            os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"initial_scenario_{session_id}.png")
+            os.path.join(per_session_plots_dir, f"initial_scenario_{session_id}.png")
         )
-        print(f"📈 Initial scenario plot saved: {initial_plot_path}")
-        
+        print(f"📈 Scenario setup plot saved: {scatter_plot_path}")
+
         # Initialize power level
         self.current_power_dBm = self.current_scenario["sim_settings"]["default_bs_power_dBm"]
         
-        # Run optimization iterations
+    # Run optimization iterations
         for iteration in range(1, self.max_iterations + 1):
             print(f"\n🔄 === ITERATION {iteration} ===")
             
             try:
                 iteration_result = self._run_single_iteration(iteration)
                 self.iteration_history.append(iteration_result)
+                # concise logging: actions & key results
+                coord = iteration_result.get('coordinator_decision', {})
+                evald = iteration_result.get('evaluation', {})
+                log_event(
+                    f"iter={iteration} users={coord.get('selected_users', [])} algo={coord.get('selected_algorithm')} "
+                    f"power={self.current_power_dBm:.1f}dBm success={evald.get('success', False)} score={evald.get('overall_score', 0):.2f}"
+                )
                 # Log metrics to CSV
                 try:
                     metrics_logger.log_iteration(iteration_result)
@@ -85,17 +117,20 @@ class RISOptimizationFramework:
                 
                 # Check stopping criteria
                 if self._check_stopping_criteria(iteration_result):
-                    # Allow at least 3 iterations for richer plots; else stop
-                    if iteration >= 3:
+                    # Allow at least N iterations for richer plots; else stop
+                    min_iters = FRAMEWORK_CONFIG.get("min_iterations_before_stop", 3)
+                    if iteration >= min_iters:
                         print(f"✅ Stopping criteria met after {iteration} iterations!")
+                        log_event(f"stopping at iter={iteration} (criteria met)")
                         break
                     else:
-                        print("ℹ️  Success criteria met early; continuing to gather more iteration data (min 3).")
+                        print(f"ℹ️  Success criteria met early; continuing to gather more iteration data (min {min_iters}).")
                     
                 # Update power for next iteration if needed
                 if iteration_result.get("power_adjustment_needed", False):
                     new_power = iteration_result.get("recommended_power_dBm", self.current_power_dBm)
                     print(f"⚡ Power adjusted: {self.current_power_dBm:.1f} → {new_power:.1f} dBm")
+                    log_event(f"power_adjust: {self.current_power_dBm:.1f}dBm -> {new_power:.1f}dBm")
                     self.current_power_dBm = new_power
                 
             except Exception as e:
@@ -118,7 +153,7 @@ class RISOptimizationFramework:
                 agent_final_snrs = last_algo_results.get('final_snrs', {})
             comparison_plot = self.viz_tool.plot_algorithm_comparison(
                 self.current_scenario, all_user_comparison,
-                os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"algorithm_comparison_{session_id}.png"),
+                os.path.join(per_session_plots_dir, f"algorithm_comparison_{session_id}.png"),
                 agent_final_snrs=agent_final_snrs
             )
             session_results.setdefault("plots", {})["algorithm_comparison"] = comparison_plot
@@ -130,6 +165,7 @@ class RISOptimizationFramework:
         self._save_session_results(session_results, session_id)
         
         print(f"\n🎉 Optimization session completed! Results saved.")
+        log_event("session end")
         return session_results
     
     def _run_single_iteration(self, iteration_num: int) -> Dict[str, Any]:
@@ -284,10 +320,12 @@ class RISOptimizationFramework:
             self.current_scenario["scenario_data"]["users"]
         )
         
-        power_efficient = evaluation.get("power_efficiency_status") in ["efficient", "appropriate"]
+        power_ok_values = FRAMEWORK_CONFIG.get("power_efficiency_ok_values", ["efficient", "appropriate"])
+        power_efficient = evaluation.get("power_efficiency_status") in power_ok_values
         
         # Overall success indicator
-        overall_success = evaluation.get("success", False) and evaluation.get("overall_score", 0) > 0.8
+        overall_score_stop_threshold = FRAMEWORK_CONFIG.get("overall_score_stop_threshold", 0.8)
+        overall_success = evaluation.get("success", False) and evaluation.get("overall_score", 0) > overall_score_stop_threshold
         
         stopping_conditions = {
             "snr_requirements_met": snr_satisfied,
@@ -296,12 +334,17 @@ class RISOptimizationFramework:
         }
         
         # Stop if all conditions are met or if we've made significant progress
-        return (snr_satisfied and power_efficient) or overall_success
+        require_eff = FRAMEWORK_CONFIG.get("require_power_efficiency_for_stop", True)
+        snr_gate = (snr_satisfied and power_efficient) if require_eff else snr_satisfied
+        return snr_gate or overall_success
     
     def _generate_session_results(self, session_id: str, start_time: float) -> Dict[str, Any]:
         """Generate comprehensive session results."""
         
         total_time = time.time() - start_time
+        # Ensure per-session plots directory exists for this session
+        per_session_plots_dir = os.path.join(FRAMEWORK_CONFIG["plots_dir"], session_id)
+        os.makedirs(per_session_plots_dir, exist_ok=True)
         
         # Analyze session performance
         final_evaluation = None
@@ -328,14 +371,14 @@ class RISOptimizationFramework:
             try:
                 power_snr_plot = self.viz_tool.plot_power_and_snr_evolution(
                     self.iteration_history,
-                    os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"power_snr_evolution_{session_id}.png")
+                    os.path.join(per_session_plots_dir, f"power_snr_evolution_{session_id}.png")
                 )
             except Exception as e:
                 print(f"⚠️  Could not generate power/SNR evolution plot: {e}")
             try:
                 efficiency_plot = self.viz_tool.plot_power_efficiency(
                     self.iteration_history,
-                    os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"power_efficiency_{session_id}.png")
+                    os.path.join(per_session_plots_dir, f"power_efficiency_{session_id}.png")
                 )
             except Exception as e:
                 print(f"⚠️  Could not generate power efficiency plot: {e}")
@@ -363,7 +406,7 @@ class RISOptimizationFramework:
         try:
             final_snr_plot = self.viz_tool.plot_final_snr_comparison(
                 self.current_scenario, self.iteration_history,
-                os.path.join(FRAMEWORK_CONFIG["plots_dir"], f"final_snr_comparison_{session_id}.png")
+                os.path.join(per_session_plots_dir, f"final_snr_comparison_{session_id}.png")
             ) if self.iteration_history else None
             if final_snr_plot:
                 session_results["plots"]["final_snr_comparison"] = final_snr_plot
@@ -487,7 +530,12 @@ if __name__ == "__main__":
     
     if results:
         print(f"\n📊 Results saved in: {FRAMEWORK_CONFIG['results_dir']}")
-        print(f"📈 Plots saved in: {FRAMEWORK_CONFIG['plots_dir']}")
+        try:
+            _sid = results.get('session_id')
+            _plots_dir = os.path.join(FRAMEWORK_CONFIG['plots_dir'], _sid) if _sid else FRAMEWORK_CONFIG['plots_dir']
+            print(f"📈 Plots saved in: {_plots_dir}")
+        except Exception:
+            print(f"📈 Plots saved in: {FRAMEWORK_CONFIG['plots_dir']}")
         
         # Optional: Print additional insights
         if input("\nShow detailed iteration history? (y/n): ").lower() == 'y':
