@@ -13,31 +13,21 @@ import os
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Any
 import copy
+from config import FRAMEWORK_CONFIG
 
 # Simulation Settings
+# Use FRAMEWORK_CONFIG sim settings as the single source of truth
 SIM_SETTINGS = {
-    "bs_coord": (0, 0, 10),                     # Base Station
-    "ris_coord": (50, 0, 10),                   # RIS location
-    "base_station_power_dBm_range": [10, 30],   # BS power range
-    "default_bs_power_dBm": 20,
-    "noise_power_dBm": -94,
-    "ris_elements": 128,
-    "PL0_dB": 20,
-    "gamma": 3.5,
+    **FRAMEWORK_CONFIG.get("sim_settings", {}),
+    "base_station_power_dBm_range": FRAMEWORK_CONFIG.get("power_range_dB", [20,45]),
+    "default_bs_power_dBm": FRAMEWORK_CONFIG.get("default_bs_power_dBm", 20),
+    # Preserve local defaults if not specified in config
     "iterations": 1000,
     "monte_carlo_runs": 500,
-    "seed": 42,
 }
 
 # Application definitions with base SNR requirements
-APPLICATIONS = {
-    "web_browsing": {"base_snr_dB": 5, "description": "Web browsing"},
-    "video_call": {"base_snr_dB": 8, "description": "Video calling"},
-    "hd_streaming": {"base_snr_dB": 12, "description": "HD video streaming"},
-    "online_gaming": {"base_snr_dB": 15, "description": "Online gaming"},
-    "4k_streaming": {"base_snr_dB": 18, "description": "4K video streaming"},
-    "ar_vr": {"base_snr_dB": 22, "description": "AR/VR applications"}
-}
+# APPLICATIONS dictionary moved to config.py under FRAMEWORK_CONFIG["snr_calculation"]["applications"]
 
 """#**Algorithms**"""
 
@@ -371,7 +361,7 @@ class RISAlgorithms:
 import numpy as np
 import matplotlib.pyplot as plt
 
-def generate_channels(K=5, N=62, Mbs=1, seed=42, sim_settings=None):
+def generate_channels(K=5, N=1, Mbs=1, seed=42, sim_settings=None):
     np.random.seed(seed)
 
     if sim_settings is None:
@@ -403,13 +393,28 @@ def generate_channels(K=5, N=62, Mbs=1, seed=42, sim_settings=None):
 
     return h_d_list, H, h_1_list, user_positions
 
-def run_test():
+def run_test(scenario_name="5U_B"):
     # Ensure plots directory exists
     os.makedirs("plots", exist_ok=True)
     
-    K, N = 5, 64
-    tx_power = 0.0001
-    algo = RISAlgorithms()
+    # Load a sample scenario to get the number of users dynamically
+    from scenario import CASES
+    sample_scenario = CASES.get(scenario_name, CASES["5U_B"])  # Fallback to 5U_B
+    
+    K = sample_scenario["num_users"]  # Get number of users from scenario
+    N = SIM_SETTINGS["ris_elements"]  # Use configured RIS elements
+    
+    # Use realistic power values from config
+    bs_power_dBm = SIM_SETTINGS["default_bs_power_dBm"]
+    noise_power_dBm = SIM_SETTINGS["noise_power_dBm"]
+    
+    # Convert to linear watts
+    tx_power = 10**(bs_power_dBm/10) / 1000  # dBm to watts
+    noise_power_linear = 10**(noise_power_dBm/10) / 1000  # dBm to watts
+    
+    algo = RISAlgorithms(noise_floor=noise_power_linear)
+    
+    print(f"Running test with scenario {scenario_name}: {K} users, {N} RIS elements")
 
     # Pass SIM_SETTINGS to generate_channels
     h_d_list, H, h_1_list, user_positions = generate_channels(K=K, N=N, sim_settings=SIM_SETTINGS)
@@ -592,30 +597,35 @@ class RISDatasetGenerator:
         self.algorithm_names = ['gradient_descent_adam_multi', 'manifold_optimization_adam_multi', 'alternating_optimization_multi']
 
     def calculate_required_snr(self, app_type: str, user_coord: Tuple, csi: Dict) -> float:
-        """
-        Calculate required SNR for a user based on application, distance, and channel conditions.
-        This accounts for additional margin needed due to poor channel conditions.
-        """
-        base_snr = APPLICATIONS[app_type]["base_snr_dB"]
-
-        # Distance-based margin (farther users need higher SNR due to uncertainty)
+        """Calculate required SNR based on application, distance, and channel conditions."""
+        snr_params = FRAMEWORK_CONFIG.get("snr_calculation", {})
+        applications = snr_params.get("applications", {})
+        base_snr = applications[app_type]["base_snr_dB"]
+        
+        # Distance-based margin
         bs_distance = self.calculate_distance_3d(self.sim_settings["bs_coord"], user_coord)
-        distance_margin = max(0, (bs_distance - 50) * 0.05)  # 0.05 dB per meter beyond 50m
+        distance_threshold = snr_params.get("distance_threshold_m", 50)
+        distance_penalty_rate = snr_params.get("distance_penalty_db_per_m", 0.05)
+        distance_margin = max(0, (bs_distance - distance_threshold) * distance_penalty_rate)
 
-        # Channel condition margin
+        # Channel condition margins
         channel_margin = 0
-
+        
         # LoS vs NLoS margin
         if not csi["los"]:
-            channel_margin += 3  # NLoS requires 3dB additional margin
+            channel_margin += snr_params.get("nlos_penalty_db", 3)
 
         # Fading margin
         if csi["fading"] == "Rayleigh":
-            channel_margin += 2  # Rayleigh fading needs more margin than Rician
+            channel_margin += snr_params.get("rayleigh_fading_penalty_db", 2)
         elif csi["fading"] == "Rician" and "K_factor_dB" in csi:
-            # Lower K-factor means more fading, needs more margin
-            if csi["K_factor_dB"] < 5:
-                channel_margin += 1
+            k_threshold = snr_params.get("k_factor_threshold_db", 5)
+            if csi["K_factor_dB"] < k_threshold:
+                channel_margin += snr_params.get("rician_low_k_penalty_db", 1)
+        
+        # Optional blockage penalty (for future use)
+        if snr_params.get("use_blockage_penalty", False) and csi.get("blockage") == "blocked":
+            channel_margin += snr_params.get("blockage_penalty_db", 2)
 
         required_snr = base_snr + distance_margin + channel_margin
         return required_snr
@@ -859,7 +869,8 @@ class RISDatasetGenerator:
         num_users = np.random.randint(3, 6)  # 3-5 users
         users = []
 
-        app_types = list(APPLICATIONS.keys())
+        applications = FRAMEWORK_CONFIG.get("snr_calculation", {}).get("applications", {})
+        app_types = list(applications.keys())
 
         for user_id in range(1, num_users + 1):
             app = np.random.choice(app_types)

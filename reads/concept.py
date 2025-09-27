@@ -8,14 +8,15 @@ from typing import Dict, List, Tuple
 
 # Import from multiuserdatasetgenerator
 sys.path.append('.')
-from multiuserdatasetgenerator import RISAlgorithms, SIM_SETTINGS, APPLICATIONS
+from multiuserdatasetgenerator import RISAlgorithms, SIM_SETTINGS
+from config import FRAMEWORK_CONFIG
 
 class RISDatasetGenerator:
     """Simplified version focused on scenario generation for concept analysis"""
     
     def __init__(self):
         self.sim_settings = SIM_SETTINGS
-        self.applications = APPLICATIONS
+        self.applications = FRAMEWORK_CONFIG.get("snr_calculation", {}).get("applications", {})
         
     def generate_random_case(self) -> Dict:
         """Generate a random case with varying users and channel conditions"""

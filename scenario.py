@@ -1,5 +1,41 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import json
+import os
+from config import FRAMEWORK_CONFIG
+
+def get_required_snr_from_json(scenario_name, user_id, json_file="required_snr_values.json"):
+    """
+    Get required SNR for a user from the JSON file.
+    
+    Args:
+        scenario_name: Name of the scenario (e.g., "5U_A")
+        user_id: ID of the user (integer)
+        json_file: Path to the JSON file with SNR values
+    
+    Returns:
+        Required SNR in dB, or None if not found
+    """
+    try:
+        if not os.path.exists(json_file):
+            return None
+            
+        with open(json_file, 'r') as f:
+            data = json.load(f)
+        
+        scenarios = data.get("scenarios", {})
+        scenario_data = scenarios.get(scenario_name, {})
+        users = scenario_data.get("users", [])
+        
+        # Find user by ID
+        for user in users:
+            if user.get("id") == user_id:
+                return user.get("calculated_req_snr_dB", None)
+        
+        return None
+    except Exception as e:
+        print(f"Warning: Could not get required SNR for {scenario_name} user {user_id}: {e}")
+        return None
 
 def compute_distance(u_coord, bs_coord):
     """Compute 3D distance between BS and user."""
@@ -65,11 +101,11 @@ def calculate_snr(h_eff, bs_power_dBm, noise_power_dBm):
 CASE_3U = {
     "num_users": 3,
     "users": [
-        {"id": 1, "coord": (30, 20, 1.5), "req_snr_dB": 15, "app": "HD video",
+        {"id": 1, "coord": (30, 20, 1.5), "req_snr_dB": get_required_snr_from_json("3U", 1) or 15, "app": "HD video",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 10}},
-        {"id": 2, "coord": (70, -10, 1.5), "req_snr_dB": 3, "app": "Voice call",
+        {"id": 2, "coord": (70, -10, 1.5), "req_snr_dB": get_required_snr_from_json("3U", 2) or 3, "app": "Voice call",
          "csi": {"blockage": "non_blocked", "los": "NLoS", "fading": "Rician", "K_factor_dB": 6}},
-        {"id": 3, "coord": (120, 40, 1.5), "req_snr_dB": 20, "app": "4K video",
+        {"id": 3, "coord": (120, 40, 1.5), "req_snr_dB": get_required_snr_from_json("3U", 3) or 20, "app": "4K video",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}}
     ]
 }
@@ -80,13 +116,13 @@ CASE_3U = {
 CASE_4U = {
     "num_users": 4,
     "users": [
-        {"id": 1, "coord": (60, 20, 1.5), "req_snr_dB": 10, "app": "Online gaming",
+        {"id": 1, "coord": (60, 20, 1.5), "req_snr_dB": get_required_snr_from_json("4U", 1) or 10, "app": "Online gaming",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 8}},
-        {"id": 2, "coord": (65, 25, 1.5), "req_snr_dB": 5, "app": "Audio streaming",
+        {"id": 2, "coord": (65, 25, 1.5), "req_snr_dB": get_required_snr_from_json("4U", 2) or 5, "app": "Audio streaming",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 8}},
-        {"id": 3, "coord": (200, -40, 1.5), "req_snr_dB": 25, "app": "AR/VR",
+        {"id": 3, "coord": (200, -40, 1.5), "req_snr_dB": get_required_snr_from_json("4U", 3) or 25, "app": "AR/VR",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 4, "coord": (220, -60, 1.5), "req_snr_dB": 7, "app": "Web browsing",
+        {"id": 4, "coord": (220, -60, 1.5), "req_snr_dB": get_required_snr_from_json("4U", 4) or 7, "app": "Web browsing",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}}
     ]
 }
@@ -97,15 +133,15 @@ CASE_4U = {
 CASE_5U_A = {
     "num_users": 5,
     "users": [
-        {"id": 1, "coord": (20, 5, 1.5), "req_snr_dB": 25, "app": "AR/VR",
+        {"id": 1, "coord": (20, 5, 1.5), "req_snr_dB": get_required_snr_from_json("5U_A", 1) or 25, "app": "AR/VR",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 12}},
-        {"id": 2, "coord": (30, -10, 1.5), "req_snr_dB": 3, "app": "Voice call",
+        {"id": 2, "coord": (30, -10, 1.5), "req_snr_dB": get_required_snr_from_json("5U_A", 2) or 3, "app": "Voice call",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 12}},
-        {"id": 3, "coord": (200, 40, 1.5), "req_snr_dB": 20, "app": "4K video",
+        {"id": 3, "coord": (200, 40, 1.5), "req_snr_dB": get_required_snr_from_json("5U_A", 3) or 20, "app": "4K video",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 4, "coord": (250, -60, 1.5), "req_snr_dB": 15, "app": "HD video",
+        {"id": 4, "coord": (250, -60, 1.5), "req_snr_dB": get_required_snr_from_json("5U_A", 4) or 15, "app": "HD video",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 5, "coord": (300, 30, 1.5), "req_snr_dB": 5, "app": "Audio streaming",
+        {"id": 5, "coord": (300, 30, 1.5), "req_snr_dB": get_required_snr_from_json("5U_A", 5) or 5, "app": "Audio streaming",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}}
     ]
 }
@@ -116,15 +152,15 @@ CASE_5U_A = {
 CASE_5U_B = {
     "num_users": 5,
     "users": [
-        {"id": 1, "coord": (50, 10, 1.5), "req_snr_dB": 7, "app": "Web browsing",
+        {"id": 1, "coord": (50, 10, 1.5), "req_snr_dB": get_required_snr_from_json("5U_B", 1) or 7, "app": "Web browsing",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 7, "temporal_autocorr": 0.9}},
-        {"id": 2, "coord": (80, -20, 1.5), "req_snr_dB": 15, "app": "HD video",
+        {"id": 2, "coord": (80, -20, 1.5), "req_snr_dB": get_required_snr_from_json("5U_B", 2) or 15, "app": "HD video",
          "csi": {"blockage": "non_blocked", "los": "LoS", "fading": "Rician", "K_factor_dB": 7, "temporal_autocorr": 0.9}},
-        {"id": 3, "coord": (120, 30, 1.5), "req_snr_dB": 10, "app": "Online gaming",
+        {"id": 3, "coord": (120, 30, 1.5), "req_snr_dB": get_required_snr_from_json("5U_B", 3) or 10, "app": "Online gaming",
          "csi": {"blockage": "non_blocked", "los": "NLoS", "fading": "Rician", "K_factor_dB": 4, "temporal_autocorr": 0.6}},
-        {"id": 4, "coord": (160, -40, 1.5), "req_snr_dB": 20, "app": "4K video",
+        {"id": 4, "coord": (160, -40, 1.5), "req_snr_dB": get_required_snr_from_json("5U_B", 4) or 20, "app": "4K video",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh", "temporal_autocorr": 0.4}},
-        {"id": 5, "coord": (200, 50, 1.5), "req_snr_dB": 25, "app": "AR/VR",
+        {"id": 5, "coord": (200, 50, 1.5), "req_snr_dB": get_required_snr_from_json("5U_B", 5) or 25, "app": "AR/VR",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh", "temporal_autocorr": 0.4}}
     ]
 }
@@ -135,15 +171,15 @@ CASE_5U_B = {
 CASE_5U_C = {
     "num_users": 5,
     "users": [
-        {"id": 1, "coord": (250, 0, 1.5), "req_snr_dB": 20, "app": "4K video",
+        {"id": 1, "coord": (250, 0, 1.5), "req_snr_dB": get_required_snr_from_json("5U_C", 1) or 20, "app": "4K video",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 2, "coord": (300, 20, 1.5), "req_snr_dB": 25, "app": "AR/VR",
+        {"id": 2, "coord": (300, 20, 1.5), "req_snr_dB": get_required_snr_from_json("5U_C", 2) or 25, "app": "AR/VR",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 3, "coord": (320, -30, 1.5), "req_snr_dB": 10, "app": "Online gaming",
+        {"id": 3, "coord": (320, -30, 1.5), "req_snr_dB": get_required_snr_from_json("5U_C", 3) or 10, "app": "Online gaming",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 4, "coord": (350, -50, 1.5), "req_snr_dB": 15, "app": "HD video",
+        {"id": 4, "coord": (350, -50, 1.5), "req_snr_dB": get_required_snr_from_json("5U_C", 4) or 15, "app": "HD video",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}},
-        {"id": 5, "coord": (380, 60, 1.5), "req_snr_dB": 5, "app": "Audio streaming",
+        {"id": 5, "coord": (380, 60, 1.5), "req_snr_dB": get_required_snr_from_json("5U_C", 5) or 5, "app": "Audio streaming",
          "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}}
     ]
 }
@@ -151,17 +187,9 @@ CASE_5U_C = {
 
 
 SIM_SETTINGS = {
-    "bs_coord": (0, 0, 10),                     # Base Station
-    "ris_coord": (50, 0, 10),                   # RIS location
-    "base_station_power_dBm_range": [10, 30],   # BS power range
-    "default_bs_power_dBm": 20,
-    "noise_power_dBm": -94,
-    "ris_elements": 64,
-    "PL0_dB": 30,
-    "gamma": 3.5,
-    "iterations": 200,
-    "monte_carlo_runs": 200,
-    "seed": 42,
+    **FRAMEWORK_CONFIG.get("sim_settings", {}),
+    "base_station_power_dBm_range": FRAMEWORK_CONFIG.get("power_range_dB", [20,45]),
+    "default_bs_power_dBm": FRAMEWORK_CONFIG.get("default_bs_power_dBm", 20),
 }
 
 

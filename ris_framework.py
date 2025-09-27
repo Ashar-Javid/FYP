@@ -127,8 +127,9 @@ class RISOptimizationFramework:
                         print(f"ℹ️  Success criteria met early; continuing to gather more iteration data (min {min_iters}).")
                     
                 # Update power for next iteration if needed
-                if iteration_result.get("power_adjustment_needed", False):
-                    new_power = iteration_result.get("recommended_power_dBm", self.current_power_dBm)
+                pr = iteration_result.get("power_recommendation", {})
+                if pr.get("adjustment_needed", False):
+                    new_power = pr.get("recommended_power_dBm", self.current_power_dBm)
                     print(f"⚡ Power adjusted: {self.current_power_dBm:.1f} → {new_power:.1f} dBm")
                     log_event(f"power_adjust: {self.current_power_dBm:.1f}dBm -> {new_power:.1f}dBm")
                     self.current_power_dBm = new_power
@@ -164,6 +165,17 @@ class RISOptimizationFramework:
         # Save results
         self._save_session_results(session_results, session_id)
         
+        # Optional: run isolated metrics evaluation and plots (kept separate)
+        try:
+            from metrics_eval import run_metrics_eval
+            metrics_out = run_metrics_eval(per_session_plots_dir)
+            if metrics_out:
+                session_results.setdefault("plots", {})["rwsw_metrics"] = metrics_out.get("rwsw_plot")
+                session_results["plots"]["psd_part1_metrics"] = metrics_out.get("psd_part1_plot")
+                session_results["plots"]["psd_part2_metrics"] = metrics_out.get("psd_part2_plot")
+        except Exception as e:
+            print(f"⚠️  Metrics evaluation skipped/failed: {e}")
+
         print(f"\n🎉 Optimization session completed! Results saved.")
         log_event("session end")
         return session_results
@@ -189,7 +201,9 @@ class RISOptimizationFramework:
         # 2. Apply power adjustment
         if 'power_change_dB' in coordinator_decision:
             self.current_power_dBm += coordinator_decision['power_change_dB']
-            self.current_power_dBm = max(20, min(45, self.current_power_dBm))  # Clamp to range
+            # Clamp to configured power range
+            pr_min, pr_max = FRAMEWORK_CONFIG.get("power_range_dB", (20, 45))
+            self.current_power_dBm = max(pr_min, min(pr_max, self.current_power_dBm))
         
         # 3. Execute Algorithm
         print("🔧 Executing optimization algorithm...")
@@ -285,10 +299,31 @@ class RISOptimizationFramework:
         # Check for power waste (excessive delta SNR)
         if evaluation.get("power_efficiency_status") == "wasteful":
             power_waste = evaluation.get("power_waste_score", 0)
-            if power_waste > 5:  # Significant waste
+            # Get per-user final deltas when available to detect high positives
+            per_user = after_state.get("final_snrs", {})
+            excess_list = []
+            try:
+                users = self.current_scenario["scenario_data"]["users"]
+                for u in users:
+                    uid = u["id"]
+                    final_snr = per_user.get(uid, u.get("achieved_snr_dB", 0.0))
+                    excess = max(0.0, final_snr - u.get("req_snr_dB", 0.0))
+                    excess_list.append(excess)
+            except Exception:
+                excess_list = [power_waste]
+
+            # If any user has > 10 dB excess, reduce faster
+            if any(e > 10.0 for e in excess_list):
+                new_power = max(FRAMEWORK_CONFIG["power_range_dB"][0], self.current_power_dBm - 8.0)
+                reason = "High positive ΔSNR (>10 dB) detected; aggressive reduction"
+            elif power_waste > 5:
                 new_power, reason = self.power_tool.suggest_power_reduction(
-                    self.current_power_dBm, [power_waste]
+                    self.current_power_dBm, excess_list
                 )
+            else:
+                new_power, reason = self.current_power_dBm, "No significant waste"
+
+            if new_power != self.current_power_dBm:
                 power_recommendation = {
                     "adjustment_needed": True,
                     "recommended_power_dBm": new_power,
@@ -297,7 +332,8 @@ class RISOptimizationFramework:
         
         # Check for insufficient power (users not meeting requirements)
         elif evaluation.get("satisfaction_improvement", 0) <= 0:
-            if self.current_power_dBm < 45:  # Can still increase power
+            # Respect configured range for increases
+            if self.current_power_dBm < FRAMEWORK_CONFIG["power_range_dB"][1]:  # Can still increase power
                 new_power, reason = self.power_tool.calculate_power_adjustment(
                     self.current_power_dBm, self.current_scenario
                 )

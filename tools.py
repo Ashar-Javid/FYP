@@ -26,6 +26,7 @@ class ScenarioTool:
     
     def __init__(self):
         self.available_scenarios = CASES
+        # Keep SIM_SETTINGS in scenario synchronized with FRAMEWORK_CONFIG
         self.sim_settings = SIM_SETTINGS
         
     def get_scenario(self, name: str) -> Dict[str, Any]:
@@ -197,11 +198,17 @@ class AlgorithmTool:
         Execute the specified algorithm on selected users.
         Returns optimization results and performance metrics.
         """
-        # Prepare channel data for selected users
-        h_d_list, H, h_1_list = self._prepare_channel_data(scenario_data, selected_users)
+        # Prepare channel data for all users once; subset for optimization
+        h_d_all_list, H, h_1_all_list, user_id_order = self._prepare_channel_data_all(scenario_data)
+        id_to_idx = {uid: i for i, uid in enumerate(user_id_order)}
+        sel_idx = [id_to_idx[uid] for uid in selected_users if uid in id_to_idx]
+        h_d_list = [h_d_all_list[i] for i in sel_idx]
+        h_1_list = [h_1_all_list[i] for i in sel_idx]
         
         # Convert power to linear scale
         transmit_power = 10**(bs_power_dBm/10) / 1000  # dBm to Watts
+        # Noise power (Watts) from scenario settings if available
+        noise_power_W = 10**(scenario_data["sim_settings"].get("noise_power_dBm", -94)/10) / 1000
         
         # Execute algorithm - handle both short names and full names
         start_time = datetime.now()
@@ -217,23 +224,28 @@ class AlgorithmTool:
         
         if algorithm_key == "gd":
             theta_opt, rates_hist, snrs_hist, phases_hist = self.ris_algorithms.gradient_descent_adam_multi(
-                h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=500
+                h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=500, noise_power=noise_power_W
             )
         elif algorithm_key == "manifold":
             theta_opt, rates_hist, snrs_hist, phases_hist = self.ris_algorithms.manifold_optimization_adam_multi(
-                h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=500
+                h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=500, noise_power=noise_power_W
             )
         elif algorithm_key == "ao":
             theta_opt, rates_hist, snrs_hist, phases_hist = self.ris_algorithms.alternating_optimization_multi(
-                h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=200
+                h_d_list, H, h_1_list, len(H), transmit_power, max_iterations=200, noise_power=noise_power_W
             )
         else:
             raise ValueError(f"Algorithm {algorithm_name} not implemented. Available: GD, Manifold, AO")
         
         execution_time = (datetime.now() - start_time).total_seconds()
         
-        # Calculate final SNRs for all users (not just selected ones)
-        final_snrs = self._calculate_all_user_snrs(scenario_data, theta_opt, bs_power_dBm)
+        # Calculate final SNRs for all users (not just selected ones) using optimized phases
+        e = np.exp(1j * theta_opt)
+        per_user_snrs_dB = self.ris_algorithms.compute_per_user_snrs(
+            h_d_all_list, H, h_1_all_list, e, transmit_power,
+            noise_power=noise_power_W
+        )
+        final_snrs = {uid: float(per_user_snrs_dB[i]) for i, uid in enumerate(user_id_order)}
         
         return {
             "algorithm": algorithm_name,
@@ -273,19 +285,37 @@ class AlgorithmTool:
         H = (np.random.randn(N, 1) + 1j*np.random.randn(N, 1)) / np.sqrt(2)
         
         return h_d_list, H, h_1_list
+
+    def _prepare_channel_data_all(self, scenario_data: Dict[str, Any]) -> Tuple[List, np.ndarray, List, List[int]]:
+        """Prepare channel data for all users (consistent H for all).
+        Returns h_d_all_list, H, h_1_all_list, user_id_order
+        """
+        scenario = scenario_data["scenario_data"]
+        users = scenario["users"]
+        N = scenario_data["sim_settings"]["ris_elements"]
+
+        h_d_all_list = []
+        h_1_all_list = []
+
+        # Direct channel proxy: use current effective direct component as baseline (best available in current model)
+        for user_data in users:
+            h_d = user_data["current_csi"]["h_eff"]
+            h_d_all_list.append(np.array([h_d]))
+            # RIS to user channel (Rayleigh)
+            h_1 = (np.random.randn(N) + 1j*np.random.randn(N)) / np.sqrt(2)
+            h_1_all_list.append(h_1)
+
+        # BS to RIS channel shared across users
+        H = (np.random.randn(N, 1) + 1j*np.random.randn(N, 1)) / np.sqrt(2)
+        user_id_order = [u["id"] for u in users]
+        return h_d_all_list, H, h_1_all_list, user_id_order
     
     def _calculate_all_user_snrs(self, scenario_data: Dict[str, Any], theta_opt: np.ndarray, bs_power_dBm: float) -> Dict[int, float]:
         """Calculate final SNRs for all users after optimization."""
-        # This is a simplified calculation - in practice, you'd use the optimized RIS phases
+        # Deprecated placeholder retained for compatibility; now computed inline in execute_algorithm
         final_snrs = {}
-        
         for user in scenario_data["scenario_data"]["users"]:
-            # Simplified: assume some improvement for selected users
-            current_snr = user["achieved_snr_dB"]
-            # Add some improvement based on optimization (placeholder)
-            improvement = np.random.uniform(2, 8)  # dB improvement
-            final_snrs[user["id"]] = current_snr + improvement
-        
+            final_snrs[user["id"]] = float(user.get("achieved_snr_dB", 0.0))
         return final_snrs
 
     def run_algorithm_comparison(self, scenario_data: Dict[str, Any], bs_power_dBm: float) -> Dict[str, Dict[int, float]]:

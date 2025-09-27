@@ -8,21 +8,33 @@ from typing import Dict, Any
 import json
 
 # API Configuration
-CEREBRAS_API_KEY = "csk-9m6k32m2tytp959v3rhttjrwm66645cymhchjj83yxkyh8nw"
+CEREBRAS_API_KEY ="csk-4ptcxc3hvx4pwyjfrww4epj9ekjnhfh5t6t5x9exhykcfkdt"# "csk-9m6k32m2tytp959v3rhttjrwm66645cymhchjj83yxkyh8nw"
 CEREBRAS_MODEL = "llama3.1-8b"
 
 # Framework Settings
 FRAMEWORK_CONFIG = {
-    "max_iterations": 10,
-    "power_range_dB": [20, 45],
+    "max_iterations": 5,
+    "power_range_dB": [1, 10],  #changed from 20 to 45 dB 
     "convergence_tolerance": 0.5, # in dB
     "memory_file": "framework_memory.json",
     "results_dir": "results",
     "plots_dir": "plots",
     "logs_dir": "logs",
     "metrics_dir": "metrics",
+        # Radio/system simulation settings (single source of truth)
+        "sim_settings": {
+            "bs_coord": (0, 0, 10),
+            "ris_coord": (50, 0, 10),
+            "ris_elements": 1024,
+            "noise_power_dBm": -94,
+            "PL0_dB": 30,
+            "gamma": 3.5,
+            "seed": 42
+        },
+        # Default BS power used to initialize a session (dBm)
+        "default_bs_power_dBm": 1,
         # Memory controls
-        "reset_framework_memory": False,  # if True, reinitialize memory file at session start
+        "reset_framework_memory": True,  # if True, reinitialize memory file at session start
         # Decision & stopping controls
         "rag_conf_threshold": 0.7,     # RAG confidence needed to skip LLM
         "min_iterations_before_stop": 3,  # enforce at least N iterations even if success early
@@ -33,14 +45,54 @@ FRAMEWORK_CONFIG = {
         "log_level": "info",            # info|debug (future use)
         "log_llm_verbose": False,        # if True, logs full prompts/responses
         # Scenario selection
-        "default_scenario": "5U_B",     # One of: 3U, 4U, 5U_A, 5U_B, 5U_C
-    # Experimental multi-run algorithm comparison settings (currently OFF)
-    # When enabled, the framework (future enhancement) will run each algorithm
-    # multiple times (e.g., 3) and aggregate mean/std ΔSNR statistics.
-    # This is documented in README but not yet active in the execution flow.
-    "algorithm_comparison_multi_run": {
-        "enabled": False,          # Keep disabled as requested
-        "runs": 3                  # Default number of runs when enabled
+        "default_scenario": "5U_C",     # One of: 3U, 4U, 5U_A, 5U_B, 5U_C
+        # Metrics evaluation & plotting (kept separate and disabled by default)
+        "metrics_eval": {
+            "enabled": False,
+            # deterministic seeding for metrics runs
+            "base_seed": 20250927,
+            # number of evaluation iterations per scenario for metrics plots
+            "iterations": 1,
+            # number of scenarios to include in the metrics plots (m)
+            "num_scenarios": 1,
+            # scenario selection mode: "list" uses `scenarios` below; "random" samples from available
+            "scenario_mode": "list",
+            # when scenario_mode=="list", use the first `num_scenarios` from this ordered list
+            "scenarios": ["5U_A"],
+            # metric parameters (rank-weighted asymmetric average ΔSNR)
+            "metric_params": {
+                "alpha": 1.0,         # negative penalty weight
+                "beta": 0.01,          # positive reward weight (<< alpha)
+                "gamma": 0.69314718,  # ln(2): halves weight per rank step
+                "kappa": 1.0,         # log-component scale for log1p(kappa*x)
+                "epsilon_watts": 1e-3 # floor to avoid divide-by-zero
+            },
+            # power sweep (for PSD fixed-satisfaction power saving)
+            "power_sweep_dB": [-6, -3, 0, 3],  # offsets around the nominal power
+            # PSD target mode: 'best'|'median'|'fixed_value' (when fixed, set psd_target_value)
+            "psd_target": "best",
+            "psd_target_value": 0.0,
+            # apply log transform at component level (amplify differences)
+            "log_component_level": True
+        },
+    # SNR Calculation Parameters
+    "snr_calculation": {
+        "distance_threshold_m": 50,        # Distance beyond which penalty applies (meters)
+        "distance_penalty_db_per_m": 0.05, # Penalty in dB per meter beyond threshold
+        "nlos_penalty_db": 3,              # Additional SNR needed for NLoS conditions
+        "rayleigh_fading_penalty_db": 2,   # Additional SNR for Rayleigh fading
+        "rician_low_k_penalty_db": 1,      # Additional SNR when K-factor < k_factor_threshold
+        "k_factor_threshold_db": 5,        # K-factor threshold for low K penalty
+        "blockage_penalty_db": 2,          # Additional SNR for blocked conditions (future use)
+        # Application-specific base SNR requirements
+        "applications": {
+            "web_browsing": {"base_snr_dB": 5, "description": "Web browsing"},
+            "video_call": {"base_snr_dB": 8, "description": "Video calling"},
+            "hd_streaming": {"base_snr_dB": 12, "description": "HD video streaming"},
+            "online_gaming": {"base_snr_dB": 15, "description": "Online gaming"},
+            "4k_streaming": {"base_snr_dB": 18, "description": "4K video streaming"},
+            "ar_vr": {"base_snr_dB": 22, "description": "AR/VR applications"}
+        }
     }
 }
 
@@ -56,17 +108,18 @@ RAG_CONFIG = {
     }
 }
 
-# Coordinator Agent Configuration
+# Coordinator Agent Configuration (power range is dynamic from FRAMEWORK_CONFIG)
+_pmin, _pmax = FRAMEWORK_CONFIG["power_range_dB"][0], FRAMEWORK_CONFIG["power_range_dB"][1]
 COORDINATOR_CONFIG = {
     "temperature": 0.1,
     "max_tokens": 1000,
-    "system_prompt": """You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+    "system_prompt": f"""You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
 
 Your key responsibilities:
 1. Analyze user scenarios including locations, channel conditions, and delta SNR values
 2. Learn patterns from historical data to make optimal user selection decisions
-3. Select the best optimization algorithm from {Analytical, GD, Manifold, AO} and using memory 
-4. Decide on base station transmit power adjustments within 20-45 dB range, but increase power only as a last resort, while decreasing power when feasible and when delta SNR of users is positive
+3. Select the best optimization algorithm from {{Analytical, GD, Manifold, AO}} and using memory 
+4. Decide on base station transmit power adjustments within {_pmin}-{_pmax} dB range, but increase power only as a last resort, while decreasing power when feasible and when delta SNR of users is positive
 5. Use historical iteration feedback to improve future decisions
 
 Key Guidelines:
@@ -83,11 +136,11 @@ Key Guidelines:
 Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change"""
 }
 
-# Evaluator Agent Configuration
+# Evaluator Agent Configuration (power range is dynamic from FRAMEWORK_CONFIG)
 EVALUATOR_CONFIG = {
     "temperature": 0.1,
     "max_tokens": 800,
-    "system_prompt": """You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+    "system_prompt": f"""You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
 
 Your responsibilities:
 1. Compare delta SNR values before and after optimization (before optimization should be updated for every run)
@@ -98,7 +151,7 @@ Your responsibilities:
 
 Power Efficiency Guidelines:
 - If multiple users have delta SNR > 5 dB, recommend power reduction
-- If users struggle to meet requirements, recommend power increase (within 20-45 dB range)
+- If users struggle to meet requirements, recommend power increase (within {_pmin}-{_pmax} dB range)
 - Balance individual user needs with overall system efficiency
 
 Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations"""

@@ -1,0 +1,510 @@
+{
+  "metadata": {
+    "generated_at": "2025-09-28T01:37:03.617301",
+    "total_scenarios": 5,
+    "framework_config_used": {
+      "sim_settings": {
+        "bs_coord": [
+          0,
+          0,
+          10
+        ],
+        "ris_coord": [
+          50,
+          0,
+          10
+        ],
+        "ris_elements": 1024,
+        "noise_power_dBm": -94,
+        "PL0_dB": 30,
+        "gamma": 3.5,
+        "seed": 42
+      },
+      "applications": {
+        "web_browsing": {
+          "base_snr_dB": 5,
+          "description": "Web browsing"
+        },
+        "video_call": {
+          "base_snr_dB": 8,
+          "description": "Video calling"
+        },
+        "hd_streaming": {
+          "base_snr_dB": 12,
+          "description": "HD video streaming"
+        },
+        "online_gaming": {
+          "base_snr_dB": 15,
+          "description": "Online gaming"
+        },
+        "4k_streaming": {
+          "base_snr_dB": 18,
+          "description": "4K video streaming"
+        },
+        "ar_vr": {
+          "base_snr_dB": 22,
+          "description": "AR/VR applications"
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "3U": {
+      "num_users": 3,
+      "users": [
+        {
+          "id": 1,
+          "coord": [
+            30,
+            20,
+            1.5
+          ],
+          "app": "HD video",
+          "app_mapped": "hd_streaming",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 10
+          },
+          "original_req_snr_dB": 12.0,
+          "calculated_req_snr_dB": 12,
+          "base_snr_dB": 12,
+          "additional_margin_dB": 0
+        },
+        {
+          "id": 2,
+          "coord": [
+            70,
+            -10,
+            1.5
+          ],
+          "app": "Voice call",
+          "app_mapped": "video_call",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "NLoS",
+            "fading": "Rician",
+            "K_factor_dB": 6
+          },
+          "original_req_snr_dB": 9.06,
+          "calculated_req_snr_dB": 9.06,
+          "base_snr_dB": 8,
+          "additional_margin_dB": 1.06
+        },
+        {
+          "id": 3,
+          "coord": [
+            120,
+            40,
+            1.5
+          ],
+          "app": "4K video",
+          "app_mapped": "4k_streaming",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 23.84,
+          "calculated_req_snr_dB": 23.84,
+          "base_snr_dB": 18,
+          "additional_margin_dB": 5.84
+        }
+      ]
+    },
+    "4U": {
+      "num_users": 4,
+      "users": [
+        {
+          "id": 1,
+          "coord": [
+            60,
+            20,
+            1.5
+          ],
+          "app": "Online gaming",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 8
+          },
+          "original_req_snr_dB": 5.69,
+          "calculated_req_snr_dB": 5.69,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 0.69
+        },
+        {
+          "id": 2,
+          "coord": [
+            65,
+            25,
+            1.5
+          ],
+          "app": "Audio streaming",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 8
+          },
+          "original_req_snr_dB": 6.01,
+          "calculated_req_snr_dB": 6.01,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 1.01
+        },
+        {
+          "id": 3,
+          "coord": [
+            200,
+            -40,
+            1.5
+          ],
+          "app": "AR/VR",
+          "app_mapped": "ar_vr",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 31.71,
+          "calculated_req_snr_dB": 31.71,
+          "base_snr_dB": 22,
+          "additional_margin_dB": 9.71
+        },
+        {
+          "id": 4,
+          "coord": [
+            220,
+            -60,
+            1.5
+          ],
+          "app": "Web browsing",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 15.91,
+          "calculated_req_snr_dB": 15.91,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 10.91
+        }
+      ]
+    },
+    "5U_A": {
+      "num_users": 5,
+      "users": [
+        {
+          "id": 1,
+          "coord": [
+            20,
+            5,
+            1.5
+          ],
+          "app": "AR/VR",
+          "app_mapped": "ar_vr",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 12
+          },
+          "original_req_snr_dB": 22.0,
+          "calculated_req_snr_dB": 22,
+          "base_snr_dB": 22,
+          "additional_margin_dB": 0
+        },
+        {
+          "id": 2,
+          "coord": [
+            30,
+            -10,
+            1.5
+          ],
+          "app": "Voice call",
+          "app_mapped": "video_call",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 12
+          },
+          "original_req_snr_dB": 8.0,
+          "calculated_req_snr_dB": 8,
+          "base_snr_dB": 8,
+          "additional_margin_dB": 0
+        },
+        {
+          "id": 3,
+          "coord": [
+            200,
+            40,
+            1.5
+          ],
+          "app": "4K video",
+          "app_mapped": "4k_streaming",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 27.71,
+          "calculated_req_snr_dB": 27.71,
+          "base_snr_dB": 18,
+          "additional_margin_dB": 9.71
+        },
+        {
+          "id": 4,
+          "coord": [
+            250,
+            -60,
+            1.5
+          ],
+          "app": "HD video",
+          "app_mapped": "hd_streaming",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 24.36,
+          "calculated_req_snr_dB": 24.36,
+          "base_snr_dB": 12,
+          "additional_margin_dB": 12.36
+        },
+        {
+          "id": 5,
+          "coord": [
+            300,
+            30,
+            1.5
+          ],
+          "app": "Audio streaming",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 19.58,
+          "calculated_req_snr_dB": 19.58,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 14.58
+        }
+      ]
+    },
+    "5U_B": {
+      "num_users": 5,
+      "users": [
+        {
+          "id": 1,
+          "coord": [
+            50,
+            10,
+            1.5
+          ],
+          "app": "Web browsing",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 7,
+            "temporal_autocorr": 0.9
+          },
+          "original_req_snr_dB": 5.08,
+          "calculated_req_snr_dB": 5.08,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 0.08
+        },
+        {
+          "id": 2,
+          "coord": [
+            80,
+            -20,
+            1.5
+          ],
+          "app": "HD video",
+          "app_mapped": "hd_streaming",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "LoS",
+            "fading": "Rician",
+            "K_factor_dB": 7,
+            "temporal_autocorr": 0.9
+          },
+          "original_req_snr_dB": 13.64,
+          "calculated_req_snr_dB": 13.64,
+          "base_snr_dB": 12,
+          "additional_margin_dB": 1.64
+        },
+        {
+          "id": 3,
+          "coord": [
+            120,
+            30,
+            1.5
+          ],
+          "app": "Online gaming",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "non_blocked",
+            "los": "NLoS",
+            "fading": "Rician",
+            "K_factor_dB": 4,
+            "temporal_autocorr": 0.6
+          },
+          "original_req_snr_dB": 9.7,
+          "calculated_req_snr_dB": 9.7,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 4.7
+        },
+        {
+          "id": 4,
+          "coord": [
+            160,
+            -40,
+            1.5
+          ],
+          "app": "4K video",
+          "app_mapped": "4k_streaming",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh",
+            "temporal_autocorr": 0.4
+          },
+          "original_req_snr_dB": 25.76,
+          "calculated_req_snr_dB": 25.76,
+          "base_snr_dB": 18,
+          "additional_margin_dB": 7.76
+        },
+        {
+          "id": 5,
+          "coord": [
+            200,
+            50,
+            1.5
+          ],
+          "app": "AR/VR",
+          "app_mapped": "ar_vr",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh",
+            "temporal_autocorr": 0.4
+          },
+          "original_req_snr_dB": 31.82,
+          "calculated_req_snr_dB": 31.82,
+          "base_snr_dB": 22,
+          "additional_margin_dB": 9.82
+        }
+      ]
+    },
+    "5U_C": {
+      "num_users": 5,
+      "users": [
+        {
+          "id": 1,
+          "coord": [
+            250,
+            0,
+            1.5
+          ],
+          "app": "4K video",
+          "app_mapped": "4k_streaming",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 30.01,
+          "calculated_req_snr_dB": 30.01,
+          "base_snr_dB": 18,
+          "additional_margin_dB": 12.01
+        },
+        {
+          "id": 2,
+          "coord": [
+            300,
+            20,
+            1.5
+          ],
+          "app": "AR/VR",
+          "app_mapped": "ar_vr",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 36.54,
+          "calculated_req_snr_dB": 36.54,
+          "base_snr_dB": 22,
+          "additional_margin_dB": 14.54
+        },
+        {
+          "id": 3,
+          "coord": [
+            320,
+            -30,
+            1.5
+          ],
+          "app": "Online gaming",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 20.58,
+          "calculated_req_snr_dB": 20.58,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 15.58
+        },
+        {
+          "id": 4,
+          "coord": [
+            350,
+            -50,
+            1.5
+          ],
+          "app": "HD video",
+          "app_mapped": "hd_streaming",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 29.18,
+          "calculated_req_snr_dB": 29.18,
+          "base_snr_dB": 12,
+          "additional_margin_dB": 17.18
+        },
+        {
+          "id": 5,
+          "coord": [
+            380,
+            60,
+            1.5
+          ],
+          "app": "Audio streaming",
+          "app_mapped": "web_browsing",
+          "csi": {
+            "blockage": "blocked",
+            "los": "NLoS",
+            "fading": "Rayleigh"
+          },
+          "original_req_snr_dB": 23.74,
+          "calculated_req_snr_dB": 23.74,
+          "base_snr_dB": 5,
+          "additional_margin_dB": 18.74
+        }
+      ]
+    }
+  }
+}
