@@ -206,9 +206,9 @@ class AlgorithmTool:
         h_1_list = [h_1_all_list[i] for i in sel_idx]
         
         # Convert power to linear scale
-        transmit_power = 10**(bs_power_dBm/10) / 1000  # dBm to Watts
+        transmit_power = 10 ** ((bs_power_dBm - 30) / 10)  # dBm to Watts
         # Noise power (Watts) from scenario settings if available
-        noise_power_W = 10**(scenario_data["sim_settings"].get("noise_power_dBm", -94)/10) / 1000
+        noise_power_W = 10 ** ((scenario_data["sim_settings"].get("noise_power_dBm", -104) - 30) / 10)
         
         # Execute algorithm - handle both short names and full names
         start_time = datetime.now()
@@ -788,29 +788,38 @@ class VisualizationTool:
         x = np.arange(len(user_ids))
         width = 0.12 if num_algos > 6 else 0.15
 
-        plt.figure(figsize=(max(10, 2*len(user_ids)), 6))
-        for i, algo in enumerate(algo_order):
-            means = [mean_delta_map[algo].get(uid, np.nan) for uid in user_ids]
-            stds = [std_delta_map[algo].get(uid, 0.0) for uid in user_ids]
-            positions = x + (i - num_algos/2)*width + width/2
-            if multi_run_mode and algo != 'Agent' and any(s > 1e-6 for s in stds):
-                plt.bar(positions, means, width, label=algo, alpha=0.85, yerr=stds, capsize=3)
-            else:
-                plt.bar(positions, means, width, label=algo, alpha=0.85)
+        # Try to use advanced visualization first
+        try:
+            from advanced_visualization import create_enhanced_algorithm_comparison
+            save_path = create_enhanced_algorithm_comparison(
+                user_ids, mean_delta_map, std_delta_map, algo_order, 
+                self.plots_dir, multi_run_mode
+            )
+        except ImportError:
+            # Fallback to original plotting
+            plt.figure(figsize=(max(10, 2*len(user_ids)), 6))
+            for i, algo in enumerate(algo_order):
+                means = [mean_delta_map[algo].get(uid, np.nan) for uid in user_ids]
+                stds = [std_delta_map[algo].get(uid, 0.0) for uid in user_ids]
+                positions = x + (i - num_algos/2)*width + width/2
+                if multi_run_mode and algo != 'Agent' and any(s > 1e-6 for s in stds):
+                    plt.bar(positions, means, width, label=algo, alpha=0.85, yerr=stds, capsize=3)
+                else:
+                    plt.bar(positions, means, width, label=algo, alpha=0.85)
 
-        plt.axhline(0, color='k', linewidth=1.0, linestyle='--', alpha=0.7)
-        plt.xticks(x, [f'U{uid}' for uid in user_ids])
-        plt.ylabel('Δ SNR (dB)')
-        plt.xlabel('Users')
-        title_suffix = '' if not multi_run_mode else f" (Mean ± Std over {comparison_results.get('runs', 1)} runs)"
-        plt.title(f'Per-User Δ SNR: Algorithms vs Agent{title_suffix}')
-        plt.grid(axis='y', alpha=0.25)
-        plt.legend(ncol=3 if num_algos > 6 else 2, fontsize=8)
-        plt.tight_layout()
-        if save_path is None:
-            save_path = os.path.join(self.plots_dir, f'algorithm_comparison_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
+            plt.axhline(0, color='k', linewidth=1.0, linestyle='--', alpha=0.7)
+            plt.xticks(x, [f'U{uid}' for uid in user_ids])
+            plt.ylabel('Δ SNR (dB)')
+            plt.xlabel('Users')
+            title_suffix = '' if not multi_run_mode else f" (Mean ± Std over {comparison_results.get('runs', 1)} runs)"
+            plt.title(f'Per-User Δ SNR: Algorithms vs Agent{title_suffix}')
+            plt.grid(axis='y', alpha=0.25)
+            plt.legend(ncol=3 if num_algos > 6 else 2, fontsize=8)
+            plt.tight_layout()
+            if save_path is None:
+                save_path = os.path.join(self.plots_dir, f'algorithm_comparison_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.close()
         return save_path
 
 

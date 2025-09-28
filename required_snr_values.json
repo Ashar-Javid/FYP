@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2025-09-28T01:37:03.617301",
+    "generated_at": "2025-09-28T01:58:11.613122",
     "total_scenarios": 5,
     "framework_config_used": {
       "sim_settings": {
@@ -22,27 +22,27 @@
       },
       "applications": {
         "web_browsing": {
-          "base_snr_dB": 5,
+          "base_snr_dB": 50,
           "description": "Web browsing"
         },
         "video_call": {
-          "base_snr_dB": 8,
+          "base_snr_dB": 75,
           "description": "Video calling"
         },
         "hd_streaming": {
-          "base_snr_dB": 12,
+          "base_snr_dB": 95,
           "description": "HD video streaming"
         },
         "online_gaming": {
-          "base_snr_dB": 15,
+          "base_snr_dB": 100,
           "description": "Online gaming"
         },
         "4k_streaming": {
-          "base_snr_dB": 18,
+          "base_snr_dB": 110,
           "description": "4K video streaming"
         },
         "ar_vr": {
-          "base_snr_dB": 22,
+          "base_snr_dB": 130,
           "description": "AR/VR applications"
         }
       }
@@ -67,9 +67,9 @@
             "fading": "Rician",
             "K_factor_dB": 10
           },
-          "original_req_snr_dB": 12.0,
-          "calculated_req_snr_dB": 12,
-          "base_snr_dB": 12,
+          "original_req_snr_dB": 12,
+          "calculated_req_snr_dB": 95,
+          "base_snr_dB": 95,
           "additional_margin_dB": 0
         },
         {
@@ -88,8 +88,8 @@
             "K_factor_dB": 6
           },
           "original_req_snr_dB": 9.06,
-          "calculated_req_snr_dB": 9.06,
-          "base_snr_dB": 8,
+          "calculated_req_snr_dB": 76.06,
+          "base_snr_dB": 75,
           "additional_margin_dB": 1.06
         },
         {
@@ -107,8 +107,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 23.84,
-          "calculated_req_snr_dB": 23.84,
-          "base_snr_dB": 18,
+          "calculated_req_snr_dB": 115.84,
+          "base_snr_dB": 110,
           "additional_margin_dB": 5.84
         }
       ]
@@ -132,8 +132,8 @@
             "K_factor_dB": 8
           },
           "original_req_snr_dB": 5.69,
-          "calculated_req_snr_dB": 5.69,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 50.69,
+          "base_snr_dB": 50,
           "additional_margin_dB": 0.69
         },
         {
@@ -152,8 +152,8 @@
             "K_factor_dB": 8
           },
           "original_req_snr_dB": 6.01,
-          "calculated_req_snr_dB": 6.01,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 51.01,
+          "base_snr_dB": 50,
           "additional_margin_dB": 1.01
         },
         {
@@ -171,8 +171,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 31.71,
-          "calculated_req_snr_dB": 31.71,
-          "base_snr_dB": 22,
+          "calculated_req_snr_dB": 139.71,
+          "base_snr_dB": 130,
           "additional_margin_dB": 9.71
         },
         {
@@ -190,8 +190,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 15.91,
-          "calculated_req_snr_dB": 15.91,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 60.91,
+          "base_snr_dB": 50,
           "additional_margin_dB": 10.91
         }
       ]
@@ -214,9 +214,9 @@
             "fading": "Rician",
             "K_factor_dB": 12
           },
-          "original_req_snr_dB": 22.0,
-          "calculated_req_snr_dB": 22,
-          "base_snr_dB": 22,
+          "original_req_snr_dB": 22,
+          "calculated_req_snr_dB": 130,
+          "base_snr_dB": 130,
           "additional_margin_dB": 0
         },
         {
@@ -234,9 +234,9 @@
             "fading": "Rician",
             "K_factor_dB": 12
           },
-          "original_req_snr_dB": 8.0,
-          "calculated_req_snr_dB": 8,
-          "base_snr_dB": 8,
+          "original_req_snr_dB": 8,
+          "calculated_req_snr_dB": 75,
+          "base_snr_dB": 75,
           "additional_margin_dB": 0
         },
         {
@@ -254,8 +254,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 27.71,
-          "calculated_req_snr_dB": 27.71,
-          "base_snr_dB": 18,
+          "calculated_req_snr_dB": 119.71,
+          "base_snr_dB": 110,
           "additional_margin_dB": 9.71
         },
         {
@@ -273,8 +273,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 24.36,
-          "calculated_req_snr_dB": 24.36,
-          "base_snr_dB": 12,
+          "calculated_req_snr_dB": 107.36,
+          "base_snr_dB": 95,
           "additional_margin_dB": 12.36
         },
         {
@@ -292,8 +292,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 19.58,
-          "calculated_req_snr_dB": 19.58,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 64.58,
+          "base_snr_dB": 50,
           "additional_margin_dB": 14.58
         }
       ]
@@ -318,8 +318,8 @@
             "temporal_autocorr": 0.9
           },
           "original_req_snr_dB": 5.08,
-          "calculated_req_snr_dB": 5.08,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 50.08,
+          "base_snr_dB": 50,
           "additional_margin_dB": 0.08
         },
         {
@@ -339,8 +339,8 @@
             "temporal_autocorr": 0.9
           },
           "original_req_snr_dB": 13.64,
-          "calculated_req_snr_dB": 13.64,
-          "base_snr_dB": 12,
+          "calculated_req_snr_dB": 96.64,
+          "base_snr_dB": 95,
           "additional_margin_dB": 1.64
         },
         {
@@ -360,8 +360,8 @@
             "temporal_autocorr": 0.6
           },
           "original_req_snr_dB": 9.7,
-          "calculated_req_snr_dB": 9.7,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 54.7,
+          "base_snr_dB": 50,
           "additional_margin_dB": 4.7
         },
         {
@@ -380,8 +380,8 @@
             "temporal_autocorr": 0.4
           },
           "original_req_snr_dB": 25.76,
-          "calculated_req_snr_dB": 25.76,
-          "base_snr_dB": 18,
+          "calculated_req_snr_dB": 117.76,
+          "base_snr_dB": 110,
           "additional_margin_dB": 7.76
         },
         {
@@ -400,8 +400,8 @@
             "temporal_autocorr": 0.4
           },
           "original_req_snr_dB": 31.82,
-          "calculated_req_snr_dB": 31.82,
-          "base_snr_dB": 22,
+          "calculated_req_snr_dB": 139.82,
+          "base_snr_dB": 130,
           "additional_margin_dB": 9.82
         }
       ]
@@ -424,8 +424,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 30.01,
-          "calculated_req_snr_dB": 30.01,
-          "base_snr_dB": 18,
+          "calculated_req_snr_dB": 122.01,
+          "base_snr_dB": 110,
           "additional_margin_dB": 12.01
         },
         {
@@ -443,8 +443,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 36.54,
-          "calculated_req_snr_dB": 36.54,
-          "base_snr_dB": 22,
+          "calculated_req_snr_dB": 144.54,
+          "base_snr_dB": 130,
           "additional_margin_dB": 14.54
         },
         {
@@ -462,8 +462,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 20.58,
-          "calculated_req_snr_dB": 20.58,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 65.58,
+          "base_snr_dB": 50,
           "additional_margin_dB": 15.58
         },
         {
@@ -481,8 +481,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 29.18,
-          "calculated_req_snr_dB": 29.18,
-          "base_snr_dB": 12,
+          "calculated_req_snr_dB": 112.18,
+          "base_snr_dB": 95,
           "additional_margin_dB": 17.18
         },
         {
@@ -500,8 +500,8 @@
             "fading": "Rayleigh"
           },
           "original_req_snr_dB": 23.74,
-          "calculated_req_snr_dB": 23.74,
-          "base_snr_dB": 5,
+          "calculated_req_snr_dB": 68.74,
+          "base_snr_dB": 50,
           "additional_margin_dB": 18.74
         }
       ]

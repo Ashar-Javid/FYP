@@ -34,6 +34,46 @@ SIM_SETTINGS = {
 import numpy as np
 from typing import Dict, List, Tuple, Any, Sequence, Optional
 import copy
+import json
+import os
+import glob
+
+def get_latest_agentic_power(scenario_name=None):
+    """
+    Get the final power from the most recent agentic system run.
+    
+    Args:
+        scenario_name: Optional scenario name to filter results for
+        
+    Returns:
+        float: Final power in dBm from the latest agentic run, or None if not found
+    """
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        return None
+    
+    # Get all result files sorted by timestamp (newest first)
+    result_files = glob.glob(os.path.join(results_dir, "session_results_*.json"))
+    if not result_files:
+        return None
+    
+    result_files.sort(reverse=True)  # Newest first
+    
+    for result_file in result_files:
+        try:
+            with open(result_file, 'r') as f:
+                data = json.load(f)
+            
+            # If scenario_name is specified, filter by scenario
+            if scenario_name is None or data.get("scenario_name", "") == scenario_name:
+                final_power = data.get("final_power_dBm")
+                if final_power is not None:
+                    print(f"🔋 Found agentic system final power: {final_power:.1f} dBm from {os.path.basename(result_file)}")
+                    return float(final_power)
+        except (json.JSONDecodeError, KeyError, ValueError):
+            continue
+    
+    return None
 
 class RISAlgorithms:
     """RIS algorithms adapted for joint multi-user sum-rate optimization."""
@@ -393,7 +433,7 @@ def generate_channels(K=5, N=1, Mbs=1, seed=42, sim_settings=None):
 
     return h_d_list, H, h_1_list, user_positions
 
-def run_test(scenario_name="5U_B"):
+def run_test(scenario_name="5U_B", override_power_dBm=None):
     # Ensure plots directory exists
     os.makedirs("plots", exist_ok=True)
     
@@ -404,16 +444,17 @@ def run_test(scenario_name="5U_B"):
     K = sample_scenario["num_users"]  # Get number of users from scenario
     N = SIM_SETTINGS["ris_elements"]  # Use configured RIS elements
     
-    # Use realistic power values from config
-    bs_power_dBm = SIM_SETTINGS["default_bs_power_dBm"]
+    # Use power values - prioritize override_power_dBm if provided, otherwise use config
+    bs_power_dBm = override_power_dBm if override_power_dBm is not None else SIM_SETTINGS["default_bs_power_dBm"]
     noise_power_dBm = SIM_SETTINGS["noise_power_dBm"]
     
     # Convert to linear watts
-    tx_power = 10**(bs_power_dBm/10) / 1000  # dBm to watts
-    noise_power_linear = 10**(noise_power_dBm/10) / 1000  # dBm to watts
+    tx_power = 10 ** ((bs_power_dBm - 30) / 10)  # dBm to watts
+    noise_power_linear = 10 ** ((noise_power_dBm - 30) / 10)  # dBm to watts
     
     algo = RISAlgorithms(noise_floor=noise_power_linear)
     
+    power_source = "agentic system final power" if override_power_dBm is not None else "config default power"
     print(f"Running test with scenario {scenario_name}: {K} users, {N} RIS elements")
 
     # Pass SIM_SETTINGS to generate_channels
@@ -431,16 +472,22 @@ def run_test(scenario_name="5U_B"):
     theta_adam, rates_adam, snrs_adam_hist, _ = algo.gradient_descent_adam_multi(
         h_d_list, H, h_1_list, N, tx_power, max_iterations=500, learning_rate=0.01
     )
+    final_snrs_adam = snrs_adam_hist[-1] if snrs_adam_hist else []
+    print(f"📊 Adam-GD Final SNRs (dB): {np.round(final_snrs_adam, 2)}")
 
     # Manifold Adam
     theta_man, rates_man, snrs_man_hist, _ = algo.manifold_optimization_adam_multi(
         h_d_list, H, h_1_list, N, tx_power, max_iterations=500, learning_rate=0.01
     )
+    final_snrs_man = snrs_man_hist[-1] if snrs_man_hist else []
+    print(f"📊 Manifold Final SNRs (dB): {np.round(final_snrs_man, 2)}")
 
     # AO
     theta_ao, rates_ao, snrs_ao_hist, _ = algo.alternating_optimization_multi(
         h_d_list, H, h_1_list, N, tx_power, max_iterations=1000
     )
+    final_snrs_ao = snrs_ao_hist[-1] if snrs_ao_hist else []
+    print(f"📊 Alternating Opt Final SNRs (dB): {np.round(final_snrs_ao, 2)}")
 
     # Visualization
     fig, axes = plt.subplots(1, 3, figsize=(18, 5)) # Increased figure size and added a subplot
@@ -490,6 +537,28 @@ def run_test(scenario_name="5U_B"):
     plt.savefig("plots/algorithm_comparison_results.png", dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()
+
+
+def run_test_with_agentic_power(scenario_name="5U_B"):
+    """
+    Run algorithm comparison using the final power determined by the agentic system.
+    Falls back to config power if no agentic results are found.
+    """
+    print("=" * 60)
+    print("🤖 ALGORITHM COMPARISON WITH AGENTIC POWER")
+    print("=" * 60)
+    
+    # Try to get the final power from the agentic system
+    agentic_power = get_latest_agentic_power(scenario_name)
+    
+    if agentic_power is not None:
+        print(f"✅ Using agentic system's optimized power: {agentic_power:.1f} dBm")
+        run_test(scenario_name, override_power_dBm=agentic_power)
+    else:
+        print("⚠️  No agentic results found, using default config power")
+        run_test(scenario_name)
+    
+    print("=" * 60)
 
 
 if __name__ == "__main__":
@@ -752,6 +821,7 @@ class RISDatasetGenerator:
             try:
                 # Run the multi-user algorithm
                 algo_method = getattr(self.algorithms, algo_name)
+                
                 theta, sum_rates, per_user_snrs, iterations = algo_method(
                     h_d_list, H_list[0], h_1_list, self.sim_settings["ris_elements"],
                     bs_power_linear, max_iterations=self.sim_settings["iterations"],
@@ -760,6 +830,10 @@ class RISDatasetGenerator:
 
                 # Calculate QoS for each selected user based on the final per-user SNRs
                 final_per_user_snrs = per_user_snrs[-1] if per_user_snrs else [-999.0] * len(selected_users)
+                
+                # Log final SNRs calculated
+                print(f"📊 {algo_name} Final SNRs (dB): {np.round(final_per_user_snrs, 2)}")
+                
                 for i, user_id in enumerate(selected_users):
                     required_snr = user_channels[user_id]["required_snr_dB"]
                     achieved_snr = final_per_user_snrs[i]
@@ -1017,7 +1091,7 @@ def main():
     generator = RISDatasetGenerator()
 
     # Generate dataset
-    dataset = generator.generate_dataset(num_examples=500)
+    dataset = generator.generate_dataset(num_examples=5)
 
     # Save dataset
     generator.save_dataset(dataset, 'ris_user_algorithm_dataset.json')

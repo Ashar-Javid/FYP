@@ -133,8 +133,21 @@ class CoordinatorAgent:
         # If RAG is confident enough, bypass LLM and produce a direct decision
         try:
             rag_threshold = FRAMEWORK_CONFIG.get("rag_conf_threshold", 0.7)
-            if algorithm_patterns.get("confidence", 0.0) >= rag_threshold:
-                scenario = scenario_data["scenario_data"]
+            rag_confidence = algorithm_patterns.get("confidence", 0.0)
+            rag_allowed = rag_confidence >= rag_threshold
+
+            scenario = scenario_data["scenario_data"]
+            high_positive_cutoff = FRAMEWORK_CONFIG.get("high_positive_delta_cutoff", 3.0)
+            high_delta_users = [u for u in scenario["users"] if u.get("delta_snr_dB", 0) > high_positive_cutoff]
+
+            urgent_guidance_present = False
+            if iteration_history:
+                last_iteration = iteration_history[-1]
+                last_eval = last_iteration.get("evaluation", {}) if isinstance(last_iteration, dict) else {}
+                urgent_guidance_present = bool(last_iteration.get("urgent_action_reason")) or last_eval.get("urgent_action_needed", False)
+
+            # Only allow RAG-shortcut when confidence is high AND no urgent evaluator guidance AND no high-positive-delta users
+            if rag_allowed and not urgent_guidance_present and not high_delta_users:
                 threshold = user_selection_patterns.get("threshold", 0.0)
                 strategy = user_selection_patterns.get("selection_strategy", "learned_threshold")
                 if strategy == "learned_threshold":
@@ -143,13 +156,28 @@ class CoordinatorAgent:
                         selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
                 else:
                     selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
+
+                # Final safety filter: drop users with strongly positive delta SNR even if RAG suggested them
+                filtered_users = [
+                    u["id"] for u in scenario["users"]
+                    if u["id"] in selected_users and u.get("delta_snr_dB", 0) <= high_positive_cutoff
+                ]
+                if filtered_users:
+                    selected_users = filtered_users
+                elif not selected_users:
+                    # As a fallback, target the worst-performing users (lowest delta SNR)
+                    worst_users = sorted(scenario["users"], key=lambda u: u.get("delta_snr_dB", 0))
+                    selected_users = [u["id"] for u in worst_users[:max(1, min(3, len(worst_users)))] ]
+
                 decision = {
                     "selected_users": selected_users,
                     "selected_algorithm": algorithm_patterns.get("recommended_algorithm", "manifold"),
                     "base_station_power_change": "+2.0",
                     "power_change_dB": 2.0,
-                    "reasoning": f"RAG-direct: high confidence {algorithm_patterns.get('confidence', 0):.2f}; "
-                                 f"strategy={strategy}, threshold={threshold:.2f}",
+                    "reasoning": (
+                        f"RAG-direct: high confidence {rag_confidence:.2f}; "
+                        f"strategy={strategy}, threshold={threshold:.2f}"
+                    ),
                     "rag_direct": True,
                     "algorithm_patterns": algorithm_patterns,
                     "user_selection_patterns": user_selection_patterns,
@@ -160,8 +188,8 @@ class CoordinatorAgent:
             # Fall through to LLM if anything unexpected occurs
             pass
 
-        # Get decision from LLM
-        prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your decision as a JSON object with the following structure:\n{{\n  \"selected_users\": [list of user IDs to optimize],\n  \"selected_algorithm\": \"algorithm_name\",\n  \"base_station_power_change\": \"power adjustment in dB (e.g., '+3.0' or '-2.5')\",\n  \"reasoning\": \"explanation of your decisions\"\n}}"
+        # Get decision from LLM with convergence detection
+        prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your decision as a JSON object with the following structure:\n{{\n  \"selected_users\": [list of user IDs to optimize],\n  \"selected_algorithm\": \"algorithm_name\",\n  \"base_station_power_change\": \"power adjustment in dB (e.g., '+3.0' or '-2.5')\",\n  \"reasoning\": \"explanation of your decisions\",\n  \"converged\": true/false,\n  \"convergence_reason\": \"reason if converged (e.g., 'all users satisfied', 'repeated configuration', 'max iterations reached')\"\n}}"
         
         try:
             response = self.client.call(prompt, self.system_prompt)
@@ -223,14 +251,38 @@ class CoordinatorAgent:
         
         # Iteration history (if available)
         if iteration_history:
-            context_parts.append(f"\nITERATION HISTORY (Last {min(3, len(iteration_history))} iterations):")
-            for i, iteration in enumerate(iteration_history[-3:], 1):
+            recent_iterations = iteration_history[-3:]
+            start_index = len(iteration_history) - len(recent_iterations) + 1
+            context_parts.append(f"\nITERATION HISTORY (Last {len(recent_iterations)} iterations):")
+            for offset, iteration in enumerate(recent_iterations):
+                idx = start_index + offset
+                coord = iteration.get('coordinator_decision', {}) if isinstance(iteration, dict) else {}
+                evaluation = iteration.get('evaluation', {}) if isinstance(iteration, dict) else {}
+                urgent_reason = iteration.get('urgent_action_reason') or evaluation.get('action_reason') if isinstance(iteration, dict) else None
+                score = evaluation.get('overall_score')
+                try:
+                    score_str = f"{float(score):.2f}" if score is not None else "N/A"
+                except (TypeError, ValueError):
+                    score_str = str(score) if score is not None else "N/A"
                 context_parts.append(
-                    f"Iteration {len(iteration_history)-3+i}: "
-                    f"Algorithm={iteration.get('algorithm', 'N/A')}, "
-                    f"Users={iteration.get('selected_users', [])}, "
-                    f"Success={iteration.get('success', False)}"
+                    "Iteration {idx}: algo={algo}, users={users}, score={score}, success={success}, "
+                    "urgent_action={urgent}".format(
+                        idx=idx,
+                        algo=coord.get('selected_algorithm', 'N/A'),
+                        users=coord.get('selected_users', []),
+                        score=score_str,
+                        success=evaluation.get('success', False),
+                        urgent=urgent_reason or 'None'
+                    )
                 )
+
+            last_eval = iteration_history[-1].get('evaluation', {}) if isinstance(iteration_history[-1], dict) else {}
+            if last_eval.get('urgent_action_needed', False):
+                context_parts.append("\nLATEST EVALUATOR GUIDANCE:")
+                context_parts.append(
+                    f"- Urgent action: {last_eval.get('action_reason', 'Evaluator requested immediate corrective action.')}"
+                )
+                context_parts.append("- Prioritize algorithm or power adjustments that address this warning before following RAG suggestions.")
         
         return "\n".join(context_parts)
     
@@ -309,6 +361,12 @@ class CoordinatorAgent:
             except:
                 decision["power_change_dB"] = 2.0
             
+            # Handle convergence fields
+            if "converged" not in decision:
+                decision["converged"] = False
+            if "convergence_reason" not in decision:
+                decision["convergence_reason"] = ""
+            
             return decision
             
         except Exception as e:
@@ -351,7 +409,9 @@ class CoordinatorAgent:
             "base_station_power_change": f"+{power_change}",
             "power_change_dB": power_change,
             "reasoning": "Extracted from text (JSON parsing failed)",
-            "is_fallback": True
+            "is_fallback": True,
+            "converged": False,
+            "convergence_reason": ""
         }
     
     def _get_fallback_decision(self, scenario_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -371,7 +431,9 @@ class CoordinatorAgent:
             "base_station_power_change": "+2.0",
             "power_change_dB": 2.0,
             "reasoning": "Fallback decision: selected users with negative delta SNR",
-            "is_fallback": True
+            "is_fallback": True,
+            "converged": False,
+            "convergence_reason": ""
         }
 
 
@@ -388,15 +450,45 @@ class EvaluatorAgent:
         self.system_prompt = EVALUATOR_CONFIG["system_prompt"]
     
     def evaluate_iteration(self, before_state: Dict[str, Any], after_state: Dict[str, Any],
-                          coordinator_decision: Dict[str, Any]) -> Dict[str, Any]:
+                          coordinator_decision: Dict[str, Any], iteration_history: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Evaluate the results of an optimization iteration.
+        Evaluate the results of an optimization iteration with historical context.
         """
-        # Prepare evaluation context
-        context = self._prepare_evaluation_context(before_state, after_state, coordinator_decision)
+        # Prepare evaluation context with history
+        context = self._prepare_evaluation_context(before_state, after_state, coordinator_decision, iteration_history)
         
-        # Get evaluation from LLM
-        prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your evaluation as a JSON object with the following structure:\n{{\n  \"performance_summary\": \"brief summary of changes\",\n  \"power_efficiency_status\": \"efficient/wasteful/appropriate\",\n  \"fairness_assessment\": \"fair/unfair distribution across users\",\n  \"recommendations\": \"specific recommendations for next iteration\",\n  \"success\": true/false,\n  \"overall_score\": 0.0-1.0\n}}"
+        # Check for extreme delta values that require immediate action
+        extreme_analysis = self._analyze_extreme_deltas(before_state, after_state)
+        
+        # Enhanced evaluation prompt with extreme value handling
+        prompt = f"""{self.system_prompt}
+
+{context}
+
+{extreme_analysis}
+
+CRITICAL: Pay special attention to extreme delta SNR values:
+- If any user has delta > 15 dB: IMMEDIATE power reduction required (mark as "wasteful")
+- If any user has delta < -10 dB: URGENT power increase or algorithm change needed
+- If deltas vary by >20 dB between users: Severe fairness issue requiring action
+
+Provide your evaluation as a JSON object with the following structure:
+{{
+    "performance_summary": "brief summary of changes and extreme values",
+    "power_efficiency_status": "efficient/wasteful/appropriate", 
+    "fairness_assessment": "fair/unfair distribution across users",
+    "recommendations": {{
+        "power_adjustment": "specific power change recommendation if needed",
+        "algorithm_tuning": "algorithm or parameter adjustments",
+        "threshold_adjustment": "user selection or priority changes"
+    }},
+    "success": true/false,
+    "overall_score": 0.0-1.0,
+    "converged": true/false,
+    "convergence_reason": "decision rationale for convergence state",
+    "urgent_action_needed": true/false,
+    "action_reason": "reason for urgent action if needed"
+}}"""
         
         try:
             response = self.client.call(prompt, self.system_prompt)
@@ -410,14 +502,21 @@ class EvaluatorAgent:
             
         except Exception as e:
             print(f"Error in evaluator: {e}")
-            return self._get_fallback_evaluation(before_state, after_state)
+            return self._get_fallback_evaluation(f"Evaluator failure: {e}")
     
     def _prepare_evaluation_context(self, before_state: Dict[str, Any], 
                                   after_state: Dict[str, Any],
-                                  coordinator_decision: Dict[str, Any]) -> str:
-        """Prepare context for evaluation."""
+                                  coordinator_decision: Dict[str, Any],
+                                  iteration_history: List[Dict[str, Any]] = None) -> str:
+        """Prepare context for evaluation with historical analysis."""
         
         context_parts = []
+        
+        # Add historical context and patterns
+        if iteration_history and len(iteration_history) > 0:
+            context_parts.append("HISTORICAL CONTEXT:")
+            context_parts.append(self._generate_historical_summary(iteration_history))
+            context_parts.append("")
         
         # Coordinator's decision
         context_parts.append("COORDINATOR'S DECISION:")
@@ -537,7 +636,11 @@ class EvaluatorAgent:
                 "fairness_assessment": "fair",
                 "recommendations": "Continue optimization",
                 "success": False,
-                "overall_score": 0.6
+                "overall_score": 0.6,
+                "converged": False,
+                "convergence_reason": "Pending evaluator decision",
+                "urgent_action_needed": False,
+                "action_reason": ""
             }
             
             for field, default_value in defaults.items():
@@ -547,6 +650,14 @@ class EvaluatorAgent:
             # Ensure success is boolean
             if isinstance(evaluation.get("success"), str):
                 evaluation["success"] = evaluation["success"].lower() in ["true", "yes", "successful", "1"]
+
+            # Ensure converged flag is boolean
+            if isinstance(evaluation.get("converged"), str):
+                evaluation["converged"] = evaluation["converged"].lower() in ["true", "yes", "1"]
+
+            # Ensure urgent action flag is boolean
+            if isinstance(evaluation.get("urgent_action_needed"), str):
+                evaluation["urgent_action_needed"] = evaluation["urgent_action_needed"].lower() in ["true", "yes", "1"]
             
             # Ensure score is numeric
             if "overall_score" in evaluation:
@@ -562,6 +673,51 @@ class EvaluatorAgent:
             snippet = (response[:300] + '...') if len(response) > 300 else response
             print(f"Response snippet: {snippet}")
             return self._get_fallback_evaluation(response)
+    
+    def _generate_historical_summary(self, iteration_history: List[Dict[str, Any]]) -> str:
+        """Generate a concise summary of previous iterations showing cause-effect patterns."""
+        if not iteration_history:
+            return "No previous iterations."
+        
+        summary_parts = []
+        summary_parts.append(f"Previous {len(iteration_history)} iterations summary:")
+        
+        for i, iteration in enumerate(iteration_history[-3:], start=max(1, len(iteration_history)-2)):  # Last 3 iterations
+            coord = iteration.get('coordinator_decision', {})
+            evaluation = iteration.get('evaluation', {})
+            power = iteration.get('current_power_dBm', 0)
+            
+            # Extract key metrics
+            success = evaluation.get('success', False)
+            score = evaluation.get('overall_score', 0)
+            power_status = evaluation.get('power_efficiency_status', 'unknown')
+            
+            # One-liner cause-effect
+            algorithm = coord.get('selected_algorithm', 'N/A')
+            users = coord.get('selected_users', [])
+            effect = "✓" if success else "✗"
+            
+            summary_parts.append(
+                f"  Iter {i}: {algorithm} @ {power:.1f}dBm on users {users} → {effect} "
+                f"(score: {score:.2f}, power: {power_status})"
+            )
+        
+        # Identify patterns
+        if len(iteration_history) >= 2:
+            recent_algorithms = [iter.get('coordinator_decision', {}).get('selected_algorithm', '') 
+                               for iter in iteration_history[-2:]]
+            recent_powers = [iter.get('current_power_dBm', 0) for iter in iteration_history[-2:]]
+            recent_successes = [iter.get('evaluation', {}).get('success', False) 
+                              for iter in iteration_history[-2:]]
+            
+            if len(set(recent_algorithms)) == 1:
+                summary_parts.append(f"  Pattern: Repeating algorithm {recent_algorithms[0]}")
+            if all(p >= 9 for p in recent_powers):
+                summary_parts.append("  Pattern: Consistently high power usage")
+            if not any(recent_successes):
+                summary_parts.append("  Pattern: No recent successes - strategy change needed")
+        
+        return "\n".join(summary_parts)
     
     def _get_fallback_evaluation(self, response: str) -> Dict[str, Any]:
         """Extract evaluation from text when JSON parsing fails."""
@@ -587,6 +743,10 @@ class EvaluatorAgent:
             "recommendations": "Continue optimization based on text analysis",
             "success": success,
             "overall_score": score,
+            "converged": False,
+            "convergence_reason": "Fallback evaluation cannot confirm convergence",
+            "urgent_action_needed": False,
+            "action_reason": "",
             "is_fallback": True
         }
     
@@ -623,6 +783,44 @@ class EvaluatorAgent:
             metrics["fairness_improvement"] = metrics["fairness_before"] - metrics["fairness_after"]
         
         return metrics
+    
+    def _analyze_extreme_deltas(self, before_state, after_state):
+        """Analyze for extreme delta SNR values requiring immediate action."""
+        analysis = []
+        
+        if not before_state or not after_state:
+            return ""
+        
+        before_snr = before_state.get('user_snr', {})
+        after_snr = after_state.get('user_snr', {})
+        
+        extreme_high = []  # > 15 dB improvement
+        extreme_low = []   # < -10 dB degradation
+        deltas = []
+        
+        for user_id in after_snr:
+            if user_id in before_snr:
+                delta = after_snr[user_id] - before_snr[user_id]
+                deltas.append(delta)
+                
+                if delta > 15:
+                    extreme_high.append(f"User {user_id}: +{delta:.1f} dB")
+                elif delta < -10:
+                    extreme_low.append(f"User {user_id}: {delta:.1f} dB")
+        
+        if extreme_high:
+            analysis.append(f"⚠️ EXTREME HIGH DELTAS: {', '.join(extreme_high)} - Power likely wasteful!")
+        
+        if extreme_low:
+            analysis.append(f"🚨 EXTREME LOW DELTAS: {', '.join(extreme_low)} - Urgent power increase needed!")
+        
+        # Check delta variance for fairness
+        if len(deltas) > 1:
+            delta_range = max(deltas) - min(deltas)
+            if delta_range > 20:
+                analysis.append(f"🚨 SEVERE FAIRNESS ISSUE: Delta range = {delta_range:.1f} dB (>20 dB threshold)")
+        
+        return "\n".join(analysis) if analysis else ""
 
 
 # Export agents

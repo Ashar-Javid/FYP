@@ -43,6 +43,11 @@ class RISOptimizationFramework:
         self.current_power_dBm = 20.0  # Default starting power
         self.max_iterations = FRAMEWORK_CONFIG["max_iterations"]
         
+        # Convergence detection state
+        self.convergence_flag = False
+        self.consecutive_same_configs = 0
+        self.last_config = None  # Will store (algorithm, power, users) tuple
+        
         print("=== RIS Multi-User Optimization Framework Initialized ===")
     
     def run_optimization_session(self) -> Dict[str, Any]:
@@ -102,6 +107,13 @@ class RISOptimizationFramework:
             try:
                 iteration_result = self._run_single_iteration(iteration)
                 self.iteration_history.append(iteration_result)
+                
+                # Check for convergence detection
+                if iteration_result.get('convergence_detected', False):
+                    print(f"🛑 Convergence detected at iteration {iteration}. Terminating optimization.")
+                    log_event(f"convergence_detected: {iteration_result.get('convergence_reason', 'Unknown')}")
+                    break
+                
                 # concise logging: actions & key results
                 coord = iteration_result.get('coordinator_decision', {})
                 evald = iteration_result.get('evaluation', {})
@@ -144,8 +156,27 @@ class RISOptimizationFramework:
 
         # Post-session: Run algorithm comparison with all users
         try:
+            # Use power from the last completed iteration, not the current power for next iteration
+            last_iteration_power = self.iteration_history[-1]["current_power_dBm"] if self.iteration_history else self.current_power_dBm
+            comparison_cfg = FRAMEWORK_CONFIG.get("comparison_power", {})
+            comparison_mode = comparison_cfg.get("mode", "agent_final")
+
+            if comparison_mode == "custom":
+                comparison_power = float(comparison_cfg.get("custom_value_dBm", last_iteration_power))
+                pr_min, pr_max = FRAMEWORK_CONFIG.get("power_range_dB", (0.0, 100.0))
+                comparison_power = max(pr_min, min(pr_max, comparison_power))
+                comparison_power_source = "custom config"
+            else:
+                comparison_power = last_iteration_power
+                comparison_power_source = "agent final iteration"
+
+            print(
+                f"🔋 Running final algorithm comparison with power: {comparison_power:.2f} dBm "
+                f"(source: {comparison_power_source})"
+            )
+
             all_user_comparison = self.algorithm_tool.run_algorithm_comparison(
-                self.current_scenario, self.current_power_dBm
+                self.current_scenario, comparison_power
             )
             # Extract agent's final iteration SNRs
             agent_final_snrs = {}
@@ -159,6 +190,7 @@ class RISOptimizationFramework:
             )
             session_results.setdefault("plots", {})["algorithm_comparison"] = comparison_plot
             session_results["algorithm_comparison_results"] = all_user_comparison
+            session_results["algorithm_comparison_power_dBm"] = comparison_power
         except Exception as e:
             print(f"⚠️  Algorithm comparison failed: {e}")
         
@@ -198,11 +230,53 @@ class RISOptimizationFramework:
         print(f"   Power Change: {coordinator_decision.get('power_change_dB', 0):.1f} dB")
         print(f"   Reasoning: {coordinator_decision.get('reasoning', 'N/A')[:100]}...")
         
-        # 2. Apply power adjustment
+        # Check if coordinator is relaying an evaluator-confirmed convergence
+        if coordinator_decision.get('converged', False):
+            convergence_reason = coordinator_decision.get('convergence_reason', 'Evaluator signalled convergence')
+            print(f"🛑 Evaluator-confirmed convergence relayed by coordinator: {convergence_reason}")
+            return {
+                "iteration": iteration_num,
+                "timestamp": datetime.now().isoformat(),
+                "execution_time": time.time() - iteration_start_time,
+                "coordinator_decision": coordinator_decision,
+                "convergence_detected": True,
+                "convergence_reason": f"Evaluator (relayed): {convergence_reason}",
+                "current_power_dBm": self.current_power_dBm
+            }
+        
+        # Check framework convergence criteria before proceeding
+        if self._check_convergence_criteria(coordinator_decision):
+            print("🛑 FRAMEWORK CONVERGENCE FLAG RAISED - Stopping optimization")
+            # Return a special iteration result indicating convergence
+            return {
+                "iteration": iteration_num,
+                "timestamp": datetime.now().isoformat(),
+                "execution_time": time.time() - iteration_start_time,
+                "coordinator_decision": coordinator_decision,
+                "convergence_detected": True,
+                "convergence_reason": "Framework: Repeated same configuration or max power usage",
+                "current_power_dBm": self.current_power_dBm
+            }
+        
+        # 2. Apply power adjustment (only if no previous evaluator recommendation)
         if 'power_change_dB' in coordinator_decision:
-            self.current_power_dBm += coordinator_decision['power_change_dB']
+            # Check if previous iteration had a power recommendation that should take precedence
+            if self.iteration_history:
+                last_power_rec = self.iteration_history[-1].get("power_recommendation", {})
+                if last_power_rec.get("adjustment_needed", False):
+                    # Use evaluator's recommendation instead of coordinator's change
+                    evaluator_power = last_power_rec.get("recommended_power_dBm", self.current_power_dBm)
+                    print(f"🔧 Using evaluator's power recommendation ({evaluator_power:.1f} dBm) instead of coordinator's change (+{coordinator_decision['power_change_dB']:.1f} dB)")
+                    self.current_power_dBm = evaluator_power
+                else:
+                    # No evaluator recommendation, use coordinator's change
+                    self.current_power_dBm += coordinator_decision['power_change_dB']
+            else:
+                # First iteration, use coordinator's change
+                self.current_power_dBm += coordinator_decision['power_change_dB']
+            
             # Clamp to configured power range
-            pr_min, pr_max = FRAMEWORK_CONFIG.get("power_range_dB", (20, 45))
+            pr_min, pr_max = FRAMEWORK_CONFIG.get("power_range_dB", (1, 10))
             self.current_power_dBm = max(pr_min, min(pr_max, self.current_power_dBm))
         
         # 3. Execute Algorithm
@@ -250,6 +324,28 @@ class RISOptimizationFramework:
         print(f"   Power Efficiency: {evaluation.get('power_efficiency_status', 'unknown')}")
         print(f"   Summary: {evaluation.get('performance_summary', 'N/A')[:100]}...")
         
+        urgent_action_reason = None
+        if evaluation.get('urgent_action_needed', False):
+            urgent_action_reason = evaluation.get('action_reason', 'Extreme values detected')
+            print(f"🚨 EVALUATOR URGENT ACTION: {urgent_action_reason}")
+            log_event(f"urgent_action: {urgent_action_reason}")
+
+        # Respect evaluator convergence verdict
+        if evaluation.get('converged', False):
+            convergence_reason = evaluation.get('convergence_reason', 'Evaluator confirmed convergence')
+            print(f"🟢 Evaluator convergence verdict: {convergence_reason}")
+            return {
+                "iteration": iteration_num,
+                "timestamp": datetime.now().isoformat(),
+                "execution_time": time.time() - iteration_start_time,
+                "coordinator_decision": coordinator_decision,
+                "algorithm_results": algorithm_results,
+                "evaluation": evaluation,
+                "convergence_detected": True,
+                "convergence_reason": f"Evaluator convergence: {convergence_reason}",
+                "current_power_dBm": self.current_power_dBm
+            }
+        
         # 5. Power Control Assessment
         power_recommendation = self._assess_power_needs(evaluation, after_state)
         
@@ -271,6 +367,7 @@ class RISOptimizationFramework:
             "algorithm_results": algorithm_results,
             "evaluation": evaluation,
             "power_recommendation": power_recommendation,
+            "urgent_action_reason": urgent_action_reason,
             "current_power_dBm": self.current_power_dBm,
             "success": evaluation.get("success", False),
             "per_user_final_delta_snr": per_user_final_delta,
@@ -428,7 +525,7 @@ class RISOptimizationFramework:
             "successful_iterations": successful_iterations,
             "success_rate": success_rate,
             "performance_improvement": improvement,
-            "final_power_dBm": self.current_power_dBm,
+            "final_power_dBm": self.iteration_history[-1]["current_power_dBm"] if self.iteration_history else self.current_power_dBm,
             "final_evaluation": final_evaluation,
             "iteration_history": self.iteration_history,
             "plots": {
@@ -517,6 +614,52 @@ class RISOptimizationFramework:
             print(f"  Success: {eval_data.get('success', False)}")
         
         print("="*60)
+
+    def _check_convergence_criteria(self, coordinator_decision: Dict[str, Any]) -> bool:
+        """
+        Check if convergence criteria are met based on consecutive identical configurations
+        or maximum power with same algorithm/users.
+        
+        Returns True if system should pause/converge.
+        """
+        current_algorithm = coordinator_decision.get('selected_algorithm', '')
+        current_users = tuple(sorted(coordinator_decision.get('selected_users', [])))
+        current_power = round(self.current_power_dBm, 1)
+        
+        current_config = (current_algorithm, current_power, current_users)
+        
+        # Check criterion 1: Same algorithm, power, and users for 3 consecutive runs
+        if self.last_config == current_config:
+            self.consecutive_same_configs += 1
+            print(f"🔄 Same configuration detected ({self.consecutive_same_configs}/3): {current_algorithm} @ {current_power}dBm, users {list(current_users)}")
+            
+            if self.consecutive_same_configs >= 3:
+                print("🛑 CONVERGENCE DETECTED: Same algorithm, power, and users for 3 consecutive iterations")
+                self.convergence_flag = True
+                return True
+        else:
+            self.consecutive_same_configs = 1
+            self.last_config = current_config
+        
+        # Check criterion 2: Maximum power with same algorithm and users
+        max_power = FRAMEWORK_CONFIG.get("power_range_dB", [1, 10])[1]
+        if current_power >= max_power:
+            # Check if we've used max power with same config before
+            if len(self.iteration_history) >= 2:
+                for prev_iter in self.iteration_history[-2:]:
+                    prev_coord = prev_iter.get('coordinator_decision', {})
+                    prev_algo = prev_coord.get('selected_algorithm', '')
+                    prev_users = tuple(sorted(prev_coord.get('selected_users', [])))
+                    prev_power = round(prev_iter.get('current_power_dBm', 0), 1)
+                    
+                    if (prev_algo == current_algorithm and 
+                        prev_users == current_users and 
+                        prev_power >= max_power):
+                        print(f"🛑 CONVERGENCE DETECTED: Maximum power ({max_power}dBm) with same algorithm ({current_algorithm}) and users {list(current_users)} used repeatedly")
+                        self.convergence_flag = True
+                        return True
+        
+        return False
 
 
 def main():

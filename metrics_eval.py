@@ -272,33 +272,10 @@ def run_metrics_eval(per_session_plots_dir: str):
                 vals.append(v)
         return float(np.nanmean(vals)) if vals else float('nan')
 
-    # RWS/W: single bar plot (one bar per method)
+    # Calculate metric values
     rwsw_vals = [across_scenarios_mean(rwsw_by_scenario, lbl) for lbl in method_labels]
-    plt.figure(figsize=(10,6))
-    x = np.arange(len(method_labels))
-    plt.bar(x, rwsw_vals, color='tab:blue', alpha=0.8)
-    plt.xticks(x, method_labels, rotation=0)
-    plt.ylabel('RWS per Watt (arb)')
-    plt.title('Final Metric: Rank-Weighted Satisfaction per Watt (across scenarios)')
-    plt.tight_layout()
-    rwsw_path = os.path.join(per_session_plots_dir, f"rwsw_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
-    plt.savefig(rwsw_path, dpi=150)
-    plt.close()
-
-    # PSD Part 1: S̃ at fixed power: single bar plot
     psd1_vals = [across_scenarios_mean(S_atP_by_scenario, lbl) for lbl in method_labels]
-    plt.figure(figsize=(10,6))
-    x = np.arange(len(method_labels))
-    plt.bar(x, psd1_vals, color='tab:green', alpha=0.8)
-    plt.xticks(x, method_labels, rotation=0)
-    plt.ylabel('Satisfaction core S̃ (arb)')
-    plt.title('Final Metric: PSD Part 1 (S̃ at nominal power)')
-    plt.tight_layout()
-    psd_part1_path = os.path.join(per_session_plots_dir, f"psd_part1_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
-    plt.savefig(psd_part1_path, dpi=150)
-    plt.close()
-
-    # PSD Part 2: minimal power to reach common target S* -> convert to dBm; single bar plot
+    
     def w_to_dBm(pW: float) -> float:
         if not np.isfinite(pW) or pW <= 0:
             return float('nan')
@@ -310,21 +287,69 @@ def run_metrics_eval(per_session_plots_dir: str):
         ys_W = [v for v in ys_W if np.isfinite(v)]
         mean_W = float(np.nanmean(ys_W)) if ys_W else float('nan')
         psd2_vals_dBm.append(w_to_dBm(mean_W))
+    
+    # Use advanced visualization
+    try:
+        from advanced_visualization import create_enhanced_metrics_plots
+        enhanced_paths = create_enhanced_metrics_plots(rwsw_vals, psd1_vals, psd2_vals_dBm, 
+                                                     method_labels, per_session_plots_dir)
+        rwsw_path = enhanced_paths['enhanced_rwsw']
+        psd_part1_path = enhanced_paths['enhanced_psd1'] 
+        psd_part2_path = enhanced_paths['enhanced_psd2']
+        
+        # Also save the combined plot path
+        combined_path = enhanced_paths['enhanced_combined']
+    except ImportError:
+        # Fallback to original plotting if enhanced module not available
+        import matplotlib.pyplot as plt
+        
+        # RWS/W: single bar plot (one bar per method)
+        plt.figure(figsize=(10,6))
+        x = np.arange(len(method_labels))
+        plt.bar(x, rwsw_vals, color='tab:blue', alpha=0.8)
+        plt.xticks(x, method_labels, rotation=0)
+        plt.ylabel('RWS per Watt (arb)')
+        plt.title('Final Metric: Rank-Weighted Satisfaction per Watt (across scenarios)')
+        plt.tight_layout()
+        rwsw_path = os.path.join(per_session_plots_dir, f"rwsw_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+        plt.savefig(rwsw_path, dpi=150)
+        plt.close()
 
-    plt.figure(figsize=(10,6))
-    x = np.arange(len(method_labels))
-    plt.bar(x, psd2_vals_dBm, color='tab:orange', alpha=0.8)
-    plt.xticks(x, method_labels, rotation=0)
-    plt.ylabel('Required power (dBm)')
-    plt.title('Final Metric: PSD Part 2 (Power to reach S*)')
-    plt.tight_layout()
-    psd_part2_path = os.path.join(per_session_plots_dir, f"psd_part2_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
-    plt.savefig(psd_part2_path, dpi=150)
-    plt.close()
+        # PSD Part 1: S̃ at fixed power: single bar plot
+        plt.figure(figsize=(10,6))
+        x = np.arange(len(method_labels))
+        plt.bar(x, psd1_vals, color='tab:green', alpha=0.8)
+        plt.xticks(x, method_labels, rotation=0)
+        plt.ylabel('Satisfaction core S̃ (arb)')
+        plt.title('Final Metric: PSD Part 1 (S̃ at nominal power)')
+        plt.tight_layout()
+        psd_part1_path = os.path.join(per_session_plots_dir, f"psd_part1_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+        plt.savefig(psd_part1_path, dpi=150)
+        plt.close()
 
-    return {
+        # PSD Part 2: minimal power to reach common target S* -> convert to dBm; single bar plot
+        plt.figure(figsize=(10,6))
+        x = np.arange(len(method_labels))
+        plt.bar(x, psd2_vals_dBm, color='tab:orange', alpha=0.8)
+        plt.xticks(x, method_labels, rotation=0)
+        plt.ylabel('Required power (dBm)')
+        plt.title('Final Metric: PSD Part 2 (Power to reach S*)')
+        plt.tight_layout()
+        psd_part2_path = os.path.join(per_session_plots_dir, f"psd_part2_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+        plt.savefig(psd_part2_path, dpi=150)
+        plt.close()
+        
+        combined_path = None
+
+    return_dict = {
         'scenarios': scen_order,
         'rwsw_plot': rwsw_path,
         'psd_part1_plot': psd_part1_path,
         'psd_part2_plot': psd_part2_path
     }
+    
+    # Add combined plot if available
+    if 'combined_path' in locals() and combined_path:
+        return_dict['combined_plot'] = combined_path
+        
+    return return_dict

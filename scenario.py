@@ -89,8 +89,8 @@ def calculate_snr(h_eff, bs_power_dBm, noise_power_dBm):
     """
     Compute instantaneous SNR given effective channel and BS power.
     """
-    bs_power_linear = 10**(bs_power_dBm/10) / 1000  # dBm to Watts
-    noise_linear = 10**(noise_power_dBm/10) / 1000
+    bs_power_linear = 10 ** ((bs_power_dBm - 30) / 10)  # dBm to Watts
+    noise_linear = 10 ** ((noise_power_dBm - 30) / 10)  # dBm to Watts
     snr = (abs(h_eff)**2 * bs_power_linear) / noise_linear
     return 10 * np.log10(snr + 1e-9)
 
