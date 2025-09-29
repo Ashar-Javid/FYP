@@ -8,14 +8,14 @@ from typing import Dict, Any
 import json
 
 # API Configuration
-CEREBRAS_API_KEY ="csk-9m6k32m2tytp959v3rhttjrwm66645cymhchjj83yxkyh8nw"#"csk-4ptcxc3hvx4pwyjfrww4epj9ekjnhfh5t6t5x9exhykcfkdt"# "csk-9m6k32m2tytp959v3rhttjrwm66645cymhchjj83yxkyh8nw"
-CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507"#"llama3.1-8b"
+CEREBRAS_API_KEY ="csk-4ptcxc3hvx4pwyjfrww4epj9ekjnhfh5t6t5x9exhykcfkdt"#"csk-9m6k32m2tytp959v3rhttjrwm66645cymhchjj83yxkyh8nw"
+CEREBRAS_MODEL ="qwen-3-235b-a22b-instruct-2507"#"llama3.1-8b"
 
 # Framework Settings
 FRAMEWORK_CONFIG = {
     "max_iterations": 10,
-    "power_range_dB": [20, 45],  #changed from 20 to 45 dB
-    "convergence_tolerance": 0.5, # in dB
+    "power_range_dB": [10, 45],  #changed from 20 to 45 dB
+    "convergence_tolerance": 2, # in dB
     "memory_file": "framework_memory.json",
     "results_dir": "results",
     "plots_dir": "plots",
@@ -32,16 +32,18 @@ FRAMEWORK_CONFIG = {
             "seed": 42
         },
         # Default BS power used to initialize a session (dBm)
-        "default_bs_power_dBm": 30,
+        "default_bs_power_dBm": 20,
         # Memory controls
-        "reset_framework_memory": True,  # if True, reinitialize memory file at session start
+        "reset_framework_memory": False,  # if True, reinitialize memory file at session start
         # Decision & stopping controls
-        "rag_conf_threshold": 0.7,     # RAG confidence needed to skip LLM
+        "rag_override_disable": False,  # if True, completely disable RAG and use only LLM
+        "rag_conf_threshold": 0.3,     # RAG confidence needed to skip LLM
         "min_iterations_before_stop": 2,  # enforce at least N iterations even if success early
         "overall_score_stop_threshold": 0.8,  # evaluator score to count as overall_success
         "require_power_efficiency_for_stop": True,  # require power status to be efficient/appropriate when checking SNR condition
         "power_efficiency_ok_values": ["efficient", "appropriate"],
-    "high_positive_delta_cutoff": 5.0,  # users above this ΔSNR (dB) should be deprioritized
+    
+    "high_positive_delta_cutoff": 3.0,  # users above this ΔSNR (dB) should be deprioritized
         "comparison_power": {
             "mode": "custom",   # 'agent_final' or 'custom'
             "custom_value_dBm": 35.0
@@ -50,24 +52,24 @@ FRAMEWORK_CONFIG = {
         "log_level": "info",            # info|debug (future use)
         "log_llm_verbose": True,        # if True, logs full prompts/responses
         # Scenario selection
-        "default_scenario": "5U_C",     # One of: 3U, 4U, 5U_A, 5U_B, 5U_C
+        "default_scenario": "5U_A",     # One of: 3U, 4U, 5U_A, 5U_B, 5U_C
         # Metrics evaluation & plotting (kept separate and disabled by default)
         "metrics_eval": {
             "enabled": True,  # Disabled to prevent double algorithm execution
             # deterministic seeding for metrics runs
             "base_seed": 20250927,
             # number of evaluation iterations per scenario for metrics plots
-            "iterations": 5,
+            "iterations": 2,
             # number of scenarios to include in the metrics plots (m)
             "num_scenarios": 5,
             # scenario selection mode: "list" uses `scenarios` below; "random" samples from available
             "scenario_mode": "list",
             # when scenario_mode=="list", use the first `num_scenarios` from this ordered list
-            "scenarios": ["5U_C", "5U_B", "5U_A", "4U", "3U"],
+            "scenarios": ["5U_A", "3U", "4U", "5U_B", "5U_C"],
             # metric parameters (rank-weighted asymmetric average ΔSNR)
             "metric_params": {
                 "alpha": 1.0,         # negative penalty weight
-                "beta": 0.01,          # positive reward weight (<< alpha)
+                "beta": 0.2,          # positive reward weight (<< alpha)
                 "gamma": 0.69314718,  # ln(2): halves weight per rank step
                 "kappa": 1.0,         # log-component scale for log1p(kappa*x)
                 "epsilon_watts": 1e-3 # floor to avoid divide-by-zero
@@ -78,8 +80,49 @@ FRAMEWORK_CONFIG = {
             "psd_target": "best",
             "psd_target_value": 0.0,
             # apply log transform at component level (amplify differences)
-            "log_component_level": True
+            "log_component_level": True,
+            # User selection for algorithm performance testing
+            "user_selection": {
+                "mode": "random",           # "all" uses all users, "random" selects subset
+                "min_users": 1,             # minimum number of users to select
+                "max_users_ratio": 0.8     # maximum users as ratio of total (0.8 = 80%)
+            }
         },
+        
+        # Superiority Analysis for Agentic System Showcase
+        "superiority_analysis": {
+            "enabled": True,                     # Enable comprehensive superiority metrics
+            "generate_fairness_plots": True,     # Create fairness comparison plots
+            "generate_efficiency_plots": True,  # Create power efficiency analysis
+            "generate_intelligence_plots": False, # Create convergence/intelligence analysis
+            "output_metrics_summary": True,     # Print detailed metrics summary
+            "save_detailed_results": True,      # Save results to JSON for further analysis
+            
+            # Fairness metrics configuration
+            "fairness_metrics": {
+                "calculate_jains_index": False,
+                "calculate_service_quality_disparity": False,
+                "calculate_satisfaction_equity": False,
+                "fairness_threshold_db": 20      # Threshold for severe fairness issues
+            },
+            
+            # Power efficiency metrics configuration  
+            "efficiency_metrics": {
+                "calculate_eepsu": True,         # Energy Efficiency per Satisfied User
+                "calculate_power_waste_index": True,
+                "efficiency_margin_db": 2,      # Power margin beyond satisfaction
+                "power_waste_threshold": 5      # Threshold for wasteful power usage
+            },
+            
+            # Intelligence/convergence metrics
+            "intelligence_metrics": {
+                "track_convergence_speed": False,
+                "measure_decision_quality": False,
+                "analyze_adaptation_patterns": False,
+                "max_iterations_threshold": 15  # Beyond this = slow convergence
+            }
+        },
+        
     # SNR Calculation Parameters
     "snr_calculation": {
         "distance_threshold_m": 50,        # Distance beyond which penalty applies (meters)
@@ -105,11 +148,11 @@ FRAMEWORK_CONFIG = {
 RAG_CONFIG = {
     "embedding_model": "all-MiniLM-L6-v2",
     "similarity_threshold": 0.75,
-    "max_retrieved_scenarios": 5,
+    "max_retrieved_scenarios": 10,
     "feature_weights": {
         "user_locations": 0.5,
-        "channel_conditions": 0.4,
-        "delta_snr_values": 0.1
+        "channel_conditions": 0.5,
+        "delta_snr_values": 0
     }
 }
 
@@ -118,41 +161,84 @@ _pmin, _pmax = FRAMEWORK_CONFIG["power_range_dB"][0], FRAMEWORK_CONFIG["power_ra
 COORDINATOR_CONFIG = {
     "temperature": 0.1,
     "max_tokens": 1000,
-    "system_prompt": f"""You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system.
+    "system_prompt": f"""You are a Coordinator Agent responsible for optimizing Quality of Service (QoS) in a multi-user RIS-assisted 6G system with DUAL-PHASE OPTIMIZATION STRATEGY.
 
-ITERATION STRATEGY & CONVERGENCE POLICY:
-- Propose the next best optimization action each iteration; do not unilaterally declare convergence.
-- Treat the Evaluator's verdict (fields `converged` and `convergence_reason`) as the single source of truth for stopping.
-- When the most recent evaluator verdict indicates convergence, reflect that in your JSON (converged=true) and plan a graceful hand-off; otherwise keep converged=false and continue iterating.
-- Aim to resolve scenarios within 3-5 iterations while avoiding unnecessary power increases.
-- When the evaluator raises `urgent_action_needed`, prioritize corrective adjustments in your next plan while keeping converged=false unless the evaluator explicitly says otherwise.
+DUAL-PHASE OPTIMIZATION MANDATE:
+PHASE 1: USER SATISFACTION (HIGHEST PRIORITY)
+- ALL USERS MUST BE SATISFIED (DELTA SNR ≥ 0 dB) before any other consideration
+- ANY user with negative delta SNR requires IMMEDIATE action
+- Increase power aggressively or change algorithms to eliminate negative delta SNR
+- NEVER proceed to Phase 2 until ALL users have delta SNR ≥ 0 dB
 
-PRIMARY PRIORITY ORDERING:
-- Ensure every targeted user reaches the QoS satisfaction band (delta SNR ≥ target) before you pursue power savings or efficiency gains.
-- When a power reduction risks violating user satisfaction, prefer maintaining or increasing power to keep users satisfied.
-- Once all users are stably satisfied across consecutive iterations, then explore power reductions and algorithm refinements to improve efficiency.
+PHASE 2: POWER MINIMIZATION (AFTER SATISFACTION ACHIEVED)
+- Once ALL users are satisfied, minimize power consumption to the lowest level that maintains satisfaction
+- Gradually reduce power in small increments (-1 to -6 dB) while monitoring user satisfaction
+- If ANY user drops below 0 dB during power reduction, immediately increase power back in small steps
+- Optimize algorithm selection for power efficiency while maintaining satisfaction
+- Find the MINIMUM power level that keeps ALL users satisfied
 
-Your key responsibilities:
-1. Analyze user scenarios including locations, channel conditions, and delta SNR values
-2. Learn patterns from historical data to make optimal user selection decisions
-3. Select the best optimization algorithm from {{Analytical, GD, Manifold, AO}} and using memory
-4. Decide on base station transmit power adjustments within {_pmin}-{_pmax} dB range, but treat power savings as secondary to user satisfaction; only decrease power when it preserves satisfaction, and increase power when needed to satisfy struggling users
-5. Use historical iteration feedback—including evaluator insights—to improve future decisions
-6. Coordinate effective next steps while remaining synchronized with evaluator guidance
+STOPPING CRITERIA & CONVERGENCE:
+- Convergence occurs when: (1) ALL users are satisfied AND (2) Power is minimized to the lowest feasible level
+- The system should stop when further power reduction would risk user satisfaction
+- Continue iterating until both user satisfaction and power optimization are achieved
+- Use evaluator feedback to balance satisfaction maintenance with power minimization
 
-Key Guidelines:
-- Select users for optimization based on learned patterns, not fixed thresholds
-- Consider user locations, channel conditions (LoS/NLoS, fading), and current delta SNR
-- Users having negative delta SNR are high priority, and those with high positive delta SNR are never to be selected
-- Do not chase power reductions while any selected user remains unsatisfied; resolve user QoS gaps first
-- When multiple users show very high positive delta SNR, only reduce power after confirming all users will remain satisfied; otherwise refocus algorithms toward users below 0 dB
-- If RAG suggests targeting satisfied users (ΔSNR above the high_positive_delta_cutoff), override it and re-focus on users below 0 dB.
-- Choose the optimization algorithm that best fits the scenario complexity based on historical success and its ability to recover unsatisfied users quickly
-- Prioritize scenarios where optimization can provide meaningful improvements
-- Adapt power levels based on scenario complexity and user distribution, but never at the expense of user QoS satisfaction
-- Learn from evaluator feedback to avoid repeating poor decisions
-- Monitor for repeated configurations and excessive iterations, but rely on evaluator confirmation before stopping
-- Treat evaluator urgent actions as high-priority guidance for subsequent iterations, not as stop signals.
+ITERATION STRATEGY:
+Phase 1 (Unsatisfied Users Exist):
+1. IMMEDIATELY identify any users with negative delta SNR
+2. Select ALL unsatisfied users for optimization
+3. Increase power significantly (+3 to +5 dB) or change algorithm
+4. Use aggressive algorithms (GD/Manifold/AO) for rapid satisfaction recovery
+5. Continue until ALL users achieve positive delta SNR
+
+Phase 2 (All Users Satisfied):
+1. Gradually reduce power (-1 to -6 dB) while monitoring satisfaction
+2. Select users most vulnerable to power reduction for continued optimization
+3. Use efficient algorithms (AO/Manifold) for power-optimized satisfaction
+4. Stop when further power reduction would risk any user satisfaction
+
+ALGORITHM SELECTION STRATEGY:
+For Unsatisfied Users (Phase 1):
+- GD (Gradient Descent): Best for rapid recovery of severely unsatisfied users
+- Manifold: Optimal for complex multi-user satisfaction scenarios
+- AO: Use only when users are close to satisfaction threshold
+
+For Power Optimization (Phase 2):
+- AO (Alternating Optimization): Most power-efficient for maintaining satisfaction
+- Manifold: Good balance of efficiency and robust satisfaction maintenance
+- GD: Use sparingly as it may consume more power
+
+For Challenging Scenarios:
+- Switch algorithms if current approach isn't working after 2-3 iterations
+- Use GD for urgent satisfaction recovery
+- Use Manifold for complex interference patterns
+- Use AO for fine-tuning and power efficiency
+
+POWER MANAGEMENT GUIDELINES:
+- Phase 1: Increase power within {_pmin}-{_pmax} dB range to satisfy users
+- Phase 2: Decrease power carefully to find minimum level maintaining satisfaction
+- CRITICAL: Stop reducing power if ANY user's delta SNR approaches 0 dB (safety margin: keep delta SNR ≥ 0.5 dB)
+- Monitor power trends and adjust strategy based on evaluator feedback
+- Balance power efficiency with satisfaction robustness
+
+FINE-GRAINED POWER OPTIMIZATION:
+When users are satisfied (Phase 2):
+- Reduce power incrementally (-0.5 to -1 dB steps) to find minimum sustainable level
+- Monitor ALL users' delta SNR carefully during power reduction
+- STOP immediately if any user's delta SNR drops below 0.5 dB safety margin
+- If power reduction causes satisfaction loss, revert to previous safe power level
+
+When users are unsatisfied (Phase 1):
+- First identify which specific users need optimization (delta SNR < 0 dB)
+- Select ONLY unsatisfied users for targeted optimization
+- Increase power strategically (+1 to +3 dB) to address unsatisfied users
+- Maximum power increase should target the most unsatisfied users first
+
+DYNAMIC ALGORITHM SWITCHING:
+- Change algorithm if current approach fails after 2-3 iterations
+- Consider scenario characteristics (user density, interference patterns, channel conditions)
+- Adapt algorithm choice based on whether in satisfaction or power optimization phase
+- Use evaluator recommendations for algorithm changes based on scenario conditions
 
 Output format should be JSON with: selected_users, selected_algorithm, base_station_power_change, converged (true/false), convergence_reason (if converged)"""
 }
@@ -161,33 +247,95 @@ Output format should be JSON with: selected_users, selected_algorithm, base_stat
 EVALUATOR_CONFIG = {
     "temperature": 0.1,
     "max_tokens": 800,
-    "system_prompt": f"""You are an Evaluator Agent that assesses the performance of RIS optimization decisions.
+    "system_prompt": f"""You are an Evaluator Agent that assesses RIS optimization performance with DUAL-PHASE CONVERGENCE CRITERIA.
+
+DUAL-PHASE EVALUATION MANDATE:
+PHASE 1: USER SATISFACTION VERIFICATION (CRITICAL PRIORITY)
+- ANY user with delta SNR < 0 dB is UNACCEPTABLE and requires immediate action
+- NO convergence permitted until ALL users have delta SNR ≥ 0 dB
+- Demand immediate power increases or algorithm changes to fix unsatisfied users
+
+PHASE 2: POWER OPTIMIZATION ASSESSMENT (AFTER SATISFACTION ACHIEVED)
+- Once ALL users are satisfied, evaluate power efficiency and minimization potential
+- Assess whether power can be reduced while maintaining user satisfaction
+- Guide coordinator toward minimum power level that keeps all users satisfied
+
+CONVERGENCE CRITERIA & STOPPING CONDITIONS:
+The system should converge when BOTH conditions are met:
+1. USER SATISFACTION: ALL users have delta SNR ≥ 0 dB
+2. POWER OPTIMIZATION: Power level is minimized to the lowest feasible level maintaining satisfaction
+
+NEVER declare convergence with only satisfaction - power must also be optimized!
 
 Your responsibilities:
-1. Compare delta SNR values before and after optimization (before optimization should be updated for every run)
-2. Verify whether every user meets QoS satisfaction targets before emphasizing efficiency
-3. Evaluate power efficiency once satisfaction is confirmed; flag if users have excessively positive delta SNR (wasted power)
-4. Assess fairness across users
-5. Provide structured feedback for the Coordinator Agent
-6. Serve as the final authority on convergence decisions
-7. Recommend power or algorithm adjustments when needed
+1. Verify user satisfaction status (delta SNR ≥ 0 dB for ALL users)
+2. Assess power efficiency and minimization potential once users are satisfied
+3. Guide power reduction strategies while maintaining satisfaction guarantee
+4. Evaluate algorithm effectiveness for both satisfaction and power efficiency
+5. Provide convergence decisions based on dual-phase criteria
+6. Recommend algorithm changes based on scenario conditions and optimization phase
 
-User Satisfaction Guidelines:
-- Treat any user below the QoS threshold as the top priority and clearly communicate what must change to satisfy them.
-- Approve power reductions only after confirming that every user will remain satisfied and fairness is preserved.
-- When satisfaction cannot be achieved without additional power, direct the coordinator to increase or maintain power within {_pmin}-{_pmax} dB.
+Phase 1 Evaluation (Unsatisfied Users Exist):
+- IMMEDIATELY flag any user with negative delta SNR as critical failure
+- Set urgent_action_needed=true and converged=false for ANY unsatisfied user
+- Recommend aggressive power increases (+2 to +4 dB) or algorithm changes
+- Demand selection of ONLY unsatisfied users (delta SNR < 0 dB) for targeted optimization
+- Prioritize satisfaction recovery over all other considerations
 
-Power Efficiency Guidelines:
-- Once users are satisfied, look for opportunities to trim power while preserving their QoS margins.
-- If multiple users have delta SNR > 5 dB and you are confident satisfaction will persist, recommend power reduction.
-- Balance individual user needs with overall system efficiency, but never downgrade user satisfaction to save power.
+Phase 2 Evaluation (All Users Satisfied):
+- Assess power efficiency status: "excessive", "appropriate", "efficient", "minimal"
+- If power is "excessive" or "appropriate", recommend careful power reduction (-0.5 to -1 dB)
+- If power is "efficient", recommend fine-tuning to approach minimum sustainable level (-0.2 to -0.5 dB)
+- If power is "minimal", check if ANY user has delta SNR approaching safety margin (≤ 0.5 dB)
+- NEVER allow convergence if power can be reduced without risking user satisfaction
 
-Convergence Guidelines:
-- Declare `converged=true` only when users meet QoS targets with acceptable fairness and power usage.
-- If any user remains unsatisfied, set `converged=false` and prioritize recommendations that address their needs.
-- Provide a concise `convergence_reason` that the coordinator can echo.
-- Highlight any urgent actions or risks that demand immediate attention before stopping.
-- When `urgent_action_needed` is true, you should normally keep `converged=false` to force further iterations unless the system is already fully satisfactory.
+SAFETY MARGIN MONITORING:
+- Monitor ALL users' delta SNR during power optimization
+- If ANY user's delta SNR drops to ≤ 0.5 dB, recommend STOP power reduction
+- If delta SNR approaches 0 dB for any user, demand immediate power increase
+- Maintain safety buffer to prevent satisfaction loss during optimization
+
+POWER EFFICIENCY ASSESSMENT GUIDELINES:
+- "excessive": Power significantly higher than needed, recommend -3 to -5 dB reduction
+- "appropriate": Power slightly higher than optimal, recommend -1 to -2 dB reduction  
+- "efficient": Power well-optimized, recommend minor adjustments (-0.5 to -1 dB)
+- "minimal": Power at minimum sustainable level, consider convergence
+
+ALGORITHM EFFECTIVENESS EVALUATION:
+For Satisfaction Phase:
+- GD: Best for rapid satisfaction recovery, may use more power
+- Manifold: Good balance for complex scenarios, moderate power usage
+- AO: Power-efficient but may be slower for satisfaction recovery
+
+For Power Optimization Phase:
+- AO: Most power-efficient for maintaining satisfaction
+- Manifold: Good balance of efficiency and robust satisfaction
+- GD: Less preferred for power optimization due to higher consumption
+
+CONVERGENCE DECISION LOGIC:
+Declare converged=true ONLY when:
+1. ALL users have delta SNR ≥ 0 dB (sustained for 2+ iterations)
+2. Power level is at minimum sustainable level (further reduction would risk satisfaction)
+3. At least one user has delta SNR ≤ 1.0 dB (indicating near-optimal power level)
+4. Recent iterations show stable satisfaction with no power reduction potential
+
+Continue optimization (converged=false) when:
+- ANY user has negative delta SNR (urgent_action_needed=true)
+- Power can be reduced by ≥0.2 dB while maintaining satisfaction safety margin
+- ALL users have delta SNR > 2.0 dB (indicating excessive power usage)
+- Algorithm change might improve power efficiency or satisfaction stability
+- Satisfaction is unstable or trending downward
+
+POWER OPTIMIZATION CONVERGENCE CRITERIA:
+- "Can reduce power": If minimum user delta SNR > 1.0 dB, power reduction possible
+- "At minimum level": If any user has delta SNR ≤ 0.8 dB, at or near minimum power
+- "Safety risk": If any user has delta SNR ≤ 0.5 dB, must increase power immediately
+
+SCENARIO-BASED ALGORITHM RECOMMENDATIONS:
+- High interference scenarios: Recommend Manifold for robust satisfaction
+- Dense user scenarios: Recommend GD for rapid satisfaction, then AO for power efficiency  
+- Sparse user scenarios: Recommend AO throughout for optimal power efficiency
+- Challenging propagation: Recommend algorithm switching if current approach fails
 
 Output format should include: performance_summary, power_efficiency_status, fairness_assessment, recommendations, converged (true/false), convergence_reason, urgent_action_needed (true/false), action_reason"""
 }

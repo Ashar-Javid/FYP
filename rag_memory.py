@@ -6,17 +6,7 @@ Simplified version without heavy dependencies for better compatibility.
 
 import numpy as np
 import json
-from typing import Dict, List, Tuple, Any
-
-
-"""
-RAG Memory System for RIS Framework
-Implements similarity search and pattern matching using simple similarity metrics.
-Simplified version without heavy dependencies for better compatibility.
-"""
-
-import numpy as np
-import json
+import time
 from typing import Dict, List, Tuple, Any
 
 
@@ -232,6 +222,52 @@ class RAGMemorySystem:
             "reasoning": reasoning,
             "pattern_confidence": len(selection_patterns) / len(similar_scenarios) if similar_scenarios else 0.0
         }
+
+    def learn_from_successful_iteration(self, scenario_data: Dict[str, Any], 
+                                       algorithm_used: str, 
+                                       final_snr_deltas: List[float],
+                                       success_metrics: Dict[str, float] = None) -> bool:
+        """
+        Learn from a successful iteration by adding it to the dataset.
+        
+        Args:
+            scenario_data: The scenario that was successful
+            algorithm_used: The algorithm that worked well
+            final_snr_deltas: The final SNR delta values achieved
+            success_metrics: Optional success metrics (RSWS, PSD, etc.)
+        
+        Returns:
+            bool: True if the learning was successful
+        """
+        try:
+            # Create a new entry for the dataset
+            new_entry = {
+                "input": scenario_data,
+                "output": {
+                    "best_algorithm": algorithm_used,
+                    "final_delta_snrs": final_snr_deltas,
+                    "success_metrics": success_metrics or {},
+                    "timestamp": time.time()
+                }
+            }
+            
+            # Add to in-memory dataset
+            self.dataset.append(new_entry)
+            
+            # Save updated dataset to file
+            with open(self.dataset_path, 'w') as f:
+                json.dump(self.dataset, f, indent=2)
+            
+            print(f"RAG learned from successful iteration. Dataset now has {len(self.dataset)} entries.")
+            return True
+            
+        except Exception as e:
+            print(f"Error learning from successful iteration: {e}")
+            return False
+
+    def get_dataset_size(self) -> int:
+        """Get the current size of the dataset."""
+        return len(self.dataset)
 
 
 # Export the RAG system

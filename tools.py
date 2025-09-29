@@ -206,9 +206,9 @@ class AlgorithmTool:
         h_1_list = [h_1_all_list[i] for i in sel_idx]
         
         # Convert power to linear scale
-        transmit_power = 10 ** ((bs_power_dBm - 30) / 10)  # dBm to Watts
+        transmit_power = 10**(bs_power_dBm/10) / 1000  # dBm to Watts
         # Noise power (Watts) from scenario settings if available
-        noise_power_W = 10 ** ((scenario_data["sim_settings"].get("noise_power_dBm", -104) - 30) / 10)
+        noise_power_W = 10**(scenario_data["sim_settings"].get("noise_power_dBm", -94)/10) / 1000
         
         # Execute algorithm - handle both short names and full names
         start_time = datetime.now()
@@ -492,8 +492,111 @@ class MemoryTool:
             "active_patterns": []
         }
     
+    def calculate_iteration_metrics(self, delta_snrs: List[float], power_dBm: float) -> Dict[str, float]:
+        """Calculate RSWS and PSD metrics for a single iteration."""
+        try:
+            import math
+            import numpy as np
+            from config import FRAMEWORK_CONFIG
+            
+            # Get metric parameters from config
+            params = FRAMEWORK_CONFIG.get('metrics_eval', {}).get('metric_params', {})
+            alpha = float(params.get('alpha', 1.0))
+            beta = float(params.get('beta', 0.01))
+            gamma = float(params.get('gamma', math.log(2)))
+            kappa = float(params.get('kappa', 1.0))
+            epsilon_watts = float(params.get('epsilon_watts', 1e-3))
+            
+            # Convert power to watts
+            power_watts = 10 ** (power_dBm / 10.0) / 1000.0
+            
+            # Calculate satisfaction core (S̃)
+            s_tilde = self._compute_satisfaction_core(delta_snrs, alpha, beta, gamma, kappa)
+            
+            # Calculate RSWS (Rank-Weighted Satisfaction per Watt)
+            rsws = s_tilde / max(power_watts, epsilon_watts)
+            
+            # Calculate basic PSD components
+            satisfied_users = sum(1 for d in delta_snrs if d >= 0)
+            total_users = len(delta_snrs)
+            satisfaction_rate = satisfied_users / total_users if total_users > 0 else 0
+            
+            return {
+                "rsws": float(rsws),
+                "s_tilde": float(s_tilde),
+                "power_watts": float(power_watts),
+                "power_dBm": float(power_dBm),
+                "satisfied_users": satisfied_users,
+                "total_users": total_users,
+                "satisfaction_rate": satisfaction_rate,
+                "mean_delta_snr": float(np.mean(delta_snrs)) if delta_snrs else 0.0,
+                "min_delta_snr": float(min(delta_snrs)) if delta_snrs else 0.0,
+                "max_delta_snr": float(max(delta_snrs)) if delta_snrs else 0.0
+            }
+            
+        except Exception as e:
+            print(f"⚠️  Error calculating iteration metrics: {e}")
+            return {
+                "rsws": 0.0,
+                "s_tilde": 0.0,
+                "power_watts": 0.0,
+                "power_dBm": power_dBm,
+                "satisfied_users": 0,
+                "total_users": len(delta_snrs) if delta_snrs else 0,
+                "satisfaction_rate": 0.0,
+                "mean_delta_snr": 0.0,
+                "min_delta_snr": 0.0,
+                "max_delta_snr": 0.0
+            }
+    
+    def _compute_satisfaction_core(self, delta_snrs: List[float], alpha: float, beta: float, 
+                                 gamma: float, kappa: float) -> float:
+        """Compute the satisfaction core S̃ from delta SNR values."""
+        try:
+            import numpy as np
+            import math
+            
+            if not delta_snrs:
+                return 0.0
+            
+            # Rank users by delta SNR (ascending: worst first)
+            ranked_deltas = sorted(delta_snrs)
+            n = len(ranked_deltas)
+            
+            # Compute rank-weighted score
+            weighted_sum = 0.0
+            weight_sum = 0.0
+            
+            for i, delta in enumerate(ranked_deltas):
+                # Rank weight (higher for worse-performing users)
+                rank_weight = math.exp(-gamma * i)
+                
+                # Asymmetric penalty/reward
+                if delta < 0:
+                    score = -alpha * math.log1p(kappa * abs(delta))
+                else:
+                    score = beta * math.log1p(kappa * delta)
+                
+                weighted_sum += rank_weight * score
+                weight_sum += rank_weight
+            
+            return weighted_sum / weight_sum if weight_sum > 0 else 0.0
+            
+        except Exception as e:
+            print(f"⚠️  Error in satisfaction core calculation: {e}")
+            return 0.0
+    
     def store_iteration_result(self, iteration_data: Dict[str, Any]):
         """Store results from a completed iteration."""
+        # Calculate RSWS and PSD metrics for this iteration
+        delta_snrs = iteration_data.get("delta_snrs", [])
+        power_dBm = iteration_data.get("final_power_dBm", 0.0)
+        
+        if delta_snrs and power_dBm:
+            iteration_metrics = self.calculate_iteration_metrics(delta_snrs, power_dBm)
+            iteration_data["iteration_metrics"] = iteration_metrics
+            print(f"📊 Iteration metrics: RSWS={iteration_metrics['rsws']:.3f}, S̃={iteration_metrics['s_tilde']:.3f}")
+        
         # Load current memory
         memory = self.load_memory()
         
@@ -507,6 +610,10 @@ class MemoryTool:
         # Analyze for patterns
         self._extract_patterns(memory, iteration_data)
         
+        # Update RSWS/PSD optimization patterns
+        if iteration_data.get("success", False):
+            self.update_patterns_with_iteration(iteration_data)
+        
         # Save updated memory
         self.save_memory(memory)
         
@@ -517,14 +624,48 @@ class MemoryTool:
         """Extract learnable patterns from iteration results."""
         # Simple pattern extraction - can be enhanced
         if iteration_data.get("success", False):
+            # Enhanced pattern with RSWS/PSD metrics
+            iteration_metrics = iteration_data.get("iteration_metrics", {})
             pattern = {
                 "scenario_type": iteration_data.get("scenario_name"),
                 "selected_algorithm": iteration_data.get("algorithm"),
                 "user_selection_strategy": iteration_data.get("user_selection_reasoning"),
                 "power_level": iteration_data.get("final_power_dBm"),
-                "success_metrics": iteration_data.get("performance_metrics")
+                "success_metrics": iteration_data.get("performance_metrics"),
+                "rsws_metric": iteration_metrics.get("rsws", 0.0),
+                "s_tilde_metric": iteration_metrics.get("s_tilde", 0.0),
+                "satisfaction_rate": iteration_metrics.get("satisfaction_rate", 0.0),
+                "mean_delta_snr": iteration_metrics.get("mean_delta_snr", 0.0),
+                "pattern_quality": "high" if iteration_metrics.get("rsws", 0) > 1.0 else "medium"
             }
             memory["successful_strategies"].append(pattern)
+            
+            # Update RAG system with successful iteration including metrics
+            try:
+                from rag_memory import RAGMemorySystem
+                rag_system = RAGMemorySystem()
+                
+                # Extract scenario data from iteration for RAG learning
+                scenario_data = iteration_data.get("scenario_data", {})
+                algorithm_used = iteration_data.get("algorithm", "unknown")
+                final_delta_snrs = iteration_data.get("delta_snrs", [])
+                
+                # Enhanced success metrics including RSWS/PSD
+                success_metrics = {
+                    **iteration_data.get("performance_metrics", {}),
+                    **iteration_metrics
+                }
+                
+                if scenario_data and algorithm_used != "unknown":
+                    success = rag_system.learn_from_successful_iteration(
+                        scenario_data, algorithm_used, final_delta_snrs, success_metrics
+                    )
+                    if success:
+                        rsws = iteration_metrics.get("rsws", 0)
+                        print(f"✅ RAG learned {algorithm_used} strategy (RSWS: {rsws:.3f})")
+                    
+            except Exception as e:
+                print(f"⚠️  Failed to update RAG system: {e}")
         else:
             failure_pattern = {
                 "scenario_type": iteration_data.get("scenario_name"),
@@ -551,6 +692,133 @@ class MemoryTool:
                 relevant_patterns.append(pattern)
         
         return relevant_patterns
+    
+    def learn_rsws_psd_patterns(self, memory: Dict[str, Any]) -> Dict[str, Any]:
+        """Learn patterns that maximize RSWS and PSD metrics from successful strategies."""
+        try:
+            successful_strategies = memory.get("successful_strategies", [])
+            if not successful_strategies:
+                return {"patterns_found": 0, "recommendations": []}
+            
+            # Filter strategies with high RSWS performance
+            high_rsws_strategies = [
+                strategy for strategy in successful_strategies 
+                if strategy.get("rsws_metric", 0) > 0.5  # Threshold for good RSWS
+            ]
+            
+            if not high_rsws_strategies:
+                return {"patterns_found": 0, "recommendations": ["No high-performing RSWS strategies found"]}
+            
+            # Analyze patterns in successful strategies
+            patterns = {
+                "optimal_algorithms": {},
+                "power_levels": [],
+                "user_selection_strategies": {},
+                "scenario_specific": {},
+                "rsws_correlation": {}
+            }
+            
+            for strategy in high_rsws_strategies:
+                # Algorithm preferences
+                algo = strategy.get("selected_algorithm", "unknown")
+                rsws = strategy.get("rsws_metric", 0)
+                patterns["optimal_algorithms"][algo] = patterns["optimal_algorithms"].get(algo, []) + [rsws]
+                
+                # Power level analysis
+                power = strategy.get("power_level", 0)
+                if power > 0:
+                    patterns["power_levels"].append({"power": power, "rsws": rsws})
+                
+                # User selection strategy analysis
+                selection_strategy = strategy.get("user_selection_strategy", "unknown")
+                if selection_strategy != "unknown":
+                    if selection_strategy not in patterns["user_selection_strategies"]:
+                        patterns["user_selection_strategies"][selection_strategy] = []
+                    patterns["user_selection_strategies"][selection_strategy].append(rsws)
+                
+                # Scenario-specific patterns
+                scenario = strategy.get("scenario_type", "unknown")
+                if scenario not in patterns["scenario_specific"]:
+                    patterns["scenario_specific"][scenario] = {"strategies": [], "avg_rsws": 0}
+                patterns["scenario_specific"][scenario]["strategies"].append(strategy)
+            
+            # Generate learning insights
+            insights = self._generate_optimization_insights(patterns)
+            
+            # Store learned patterns in memory
+            if "learned_patterns" not in memory:
+                memory["learned_patterns"] = {}
+            
+            memory["learned_patterns"]["rsws_optimization"] = {
+                "timestamp": datetime.now().isoformat(),
+                "patterns": patterns,
+                "insights": insights,
+                "sample_size": len(high_rsws_strategies)
+            }
+            
+            return {
+                "patterns_found": len(high_rsws_strategies),
+                "insights": insights,
+                "recommendations": self._generate_optimization_recommendations(patterns)
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Error in RSWS/PSD pattern learning: {e}")
+            return {"patterns_found": 0, "recommendations": ["Pattern learning failed"]}
+    
+    def _generate_optimization_insights(self, patterns: Dict[str, Any]) -> List[str]:
+        """Generate insights from learned patterns."""
+        insights = []
+        
+        # Algorithm insights
+        if patterns["optimal_algorithms"]:
+            algo_performance = {}
+            for algo, rsws_values in patterns["optimal_algorithms"].items():
+                if rsws_values:
+                    algo_performance[algo] = sum(rsws_values) / len(rsws_values)
+            
+            if algo_performance:
+                best_algo = max(algo_performance, key=algo_performance.get)
+                insights.append(f"Best algorithm: {best_algo} (avg RSWS: {algo_performance[best_algo]:.3f})")
+        
+        # Power level insights
+        if patterns["power_levels"]:
+            high_rsws_powers = [p["power"] for p in patterns["power_levels"] if p["rsws"] > 1.0]
+            if high_rsws_powers:
+                optimal_power = sum(high_rsws_powers) / len(high_rsws_powers)
+                insights.append(f"Optimal power around {optimal_power:.1f} dBm for high RSWS")
+        
+        return insights
+    
+    def _generate_optimization_recommendations(self, patterns: Dict[str, Any]) -> List[str]:
+        """Generate actionable recommendations for RSWS/PSD optimization."""
+        recommendations = []
+        
+        # Algorithm recommendations
+        if patterns["optimal_algorithms"]:
+            algo_scores = {}
+            for algo, rsws_values in patterns["optimal_algorithms"].items():
+                if rsws_values and len(rsws_values) >= 2:
+                    algo_scores[algo] = sum(rsws_values) / len(rsws_values)
+            
+            if algo_scores:
+                best_algo = max(algo_scores, key=algo_scores.get)
+                recommendations.append(f"Prioritize {best_algo} algorithm for RSWS optimization")
+        
+        recommendations.append("Focus on worst-performing users to maximize rank-weighted satisfaction")
+        return recommendations
+    
+    def update_patterns_with_iteration(self, iteration_data: Dict[str, Any]):
+        """Update learned patterns with new iteration data."""
+        try:
+            if iteration_data.get("success", False):
+                memory = self.load_memory()
+                learning_result = self.learn_rsws_psd_patterns(memory)
+                if learning_result.get("patterns_found", 0) > 0:
+                    print(f"🧠 Pattern learning: {learning_result['patterns_found']} strategies analyzed")
+                    self.save_memory(memory)
+        except Exception as e:
+            print(f"⚠️ Error updating patterns: {e}")
 
 
 class VisualizationTool:

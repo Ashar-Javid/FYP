@@ -112,81 +112,98 @@ class CoordinatorAgent:
         self.system_prompt = COORDINATOR_CONFIG["system_prompt"]
         
     def analyze_scenario_and_decide(self, scenario_data: Dict[str, Any], 
-                                   iteration_history: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+                                   iteration_history: List[Dict[str, Any]] = None,
+                                   evaluator_agent=None) -> Dict[str, Any]:
         """
         Analyze the scenario and make decisions about user selection, algorithm choice, and power adjustment.
+        Now always consults evaluator before finalizing decisions.
         """
-        # Get similar scenarios from RAG memory
-        # Fix data structure for RAG compatibility
-        scenario_for_rag = {"case_data": scenario_data["scenario_data"]}
-        similar_scenarios = self.rag_system.find_similar_scenarios(scenario_for_rag)
+        # Check if RAG override is enabled - if so, skip RAG completely
+        rag_override_disabled = FRAMEWORK_CONFIG.get("rag_override_disable", False)
         
-        # Extract patterns
-        algorithm_patterns = self.rag_system.extract_algorithm_patterns(similar_scenarios)
-        user_selection_patterns = self.rag_system.extract_user_selection_patterns(similar_scenarios)
+        if rag_override_disabled:
+            # RAG is completely disabled, skip all RAG processing and go directly to LLM
+            algorithm_patterns = {"confidence": 0.0, "recommended_algorithm": "unknown"}
+            user_selection_patterns = {"confidence": 0.0, "selection_strategy": "llm_only"}
+            similar_scenarios = []
+            
+            # Prepare simplified context for LLM without RAG patterns
+            context = self._prepare_llm_only_context(scenario_data, iteration_history)
+            
+        else:
+            # Normal RAG processing
+            # Get similar scenarios from RAG memory
+            # Fix data structure for RAG compatibility
+            scenario_for_rag = {"case_data": scenario_data["scenario_data"]}
+            similar_scenarios = self.rag_system.find_similar_scenarios(scenario_for_rag)
+            
+            # Extract patterns
+            algorithm_patterns = self.rag_system.extract_algorithm_patterns(similar_scenarios)
+            user_selection_patterns = self.rag_system.extract_user_selection_patterns(similar_scenarios)
+            
+            # Prepare context for the LLM
+            context = self._prepare_decision_context(
+                scenario_data, algorithm_patterns, user_selection_patterns, iteration_history
+            )
         
-        # Prepare context for the LLM
-        context = self._prepare_decision_context(
-            scenario_data, algorithm_patterns, user_selection_patterns, iteration_history
-        )
-        
-        # If RAG is confident enough, bypass LLM and produce a direct decision
-        try:
-            rag_threshold = FRAMEWORK_CONFIG.get("rag_conf_threshold", 0.7)
-            rag_confidence = algorithm_patterns.get("confidence", 0.0)
-            rag_allowed = rag_confidence >= rag_threshold
+        # If RAG is enabled and confident enough, bypass LLM and produce a direct decision
+        if not rag_override_disabled:
+            try:
+                rag_threshold = FRAMEWORK_CONFIG.get("rag_conf_threshold", 0.7)
+                rag_confidence = algorithm_patterns.get("confidence", 0.0)
+                rag_allowed = rag_confidence >= rag_threshold
 
-            scenario = scenario_data["scenario_data"]
-            high_positive_cutoff = FRAMEWORK_CONFIG.get("high_positive_delta_cutoff", 3.0)
-            high_delta_users = [u for u in scenario["users"] if u.get("delta_snr_dB", 0) > high_positive_cutoff]
+                scenario = scenario_data["scenario_data"]
+                high_positive_cutoff = FRAMEWORK_CONFIG.get("high_positive_delta_cutoff", 3.0)
+                high_delta_users = [u for u in scenario["users"] if u.get("delta_snr_dB", 0) > high_positive_cutoff]
 
-            urgent_guidance_present = False
-            if iteration_history:
-                last_iteration = iteration_history[-1]
-                last_eval = last_iteration.get("evaluation", {}) if isinstance(last_iteration, dict) else {}
-                urgent_guidance_present = bool(last_iteration.get("urgent_action_reason")) or last_eval.get("urgent_action_needed", False)
+                urgent_guidance_present = False
+                if iteration_history:
+                    last_iteration = iteration_history[-1]
+                    last_eval = last_iteration.get("evaluation", {}) if isinstance(last_iteration, dict) else {}
+                    urgent_guidance_present = bool(last_iteration.get("urgent_action_reason")) or last_eval.get("urgent_action_needed", False)
 
-            # Only allow RAG-shortcut when confidence is high AND no urgent evaluator guidance AND no high-positive-delta users
-            if rag_allowed and not urgent_guidance_present and not high_delta_users:
-                threshold = user_selection_patterns.get("threshold", 0.0)
-                strategy = user_selection_patterns.get("selection_strategy", "learned_threshold")
-                if strategy == "learned_threshold":
-                    selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < threshold]
-                    if not selected_users:
+                # Only allow RAG-shortcut when confidence is high AND no urgent evaluator guidance AND no high-positive-delta users
+                if rag_allowed and not urgent_guidance_present and not high_delta_users:
+                    threshold = user_selection_patterns.get("threshold", 0.0)
+                    strategy = user_selection_patterns.get("selection_strategy", "learned_threshold")
+                    if strategy == "learned_threshold":
+                        selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < threshold]
+                        if not selected_users:
+                            selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
+                    else:
                         selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
-                else:
-                    selected_users = [u["id"] for u in scenario["users"] if u.get("delta_snr_dB", 0) < 0]
 
-                # Final safety filter: drop users with strongly positive delta SNR even if RAG suggested them
-                filtered_users = [
-                    u["id"] for u in scenario["users"]
-                    if u["id"] in selected_users and u.get("delta_snr_dB", 0) <= high_positive_cutoff
-                ]
-                if filtered_users:
-                    selected_users = filtered_users
-                elif not selected_users:
-                    # As a fallback, target the worst-performing users (lowest delta SNR)
-                    worst_users = sorted(scenario["users"], key=lambda u: u.get("delta_snr_dB", 0))
-                    selected_users = [u["id"] for u in worst_users[:max(1, min(3, len(worst_users)))] ]
+                    # Final safety filter: drop users with strongly positive delta SNR even if RAG suggested them
+                    filtered_users = [
+                        u["id"] for u in scenario["users"]
+                        if u["id"] in selected_users and u.get("delta_snr_dB", 0) <= high_positive_cutoff
+                    ]
+                    if filtered_users:
+                        selected_users = filtered_users
+                    elif not selected_users:
+                        # As a fallback, target the worst-performing users (lowest delta SNR)
+                        worst_users = sorted(scenario["users"], key=lambda u: u.get("delta_snr_dB", 0))
+                        selected_users = [u["id"] for u in worst_users[:max(1, min(3, len(worst_users)))] ]
 
-                decision = {
-                    "selected_users": selected_users,
-                    "selected_algorithm": algorithm_patterns.get("recommended_algorithm", "manifold"),
-                    "base_station_power_change": "+2.0",
-                    "power_change_dB": 2.0,
-                    "reasoning": (
-                        f"RAG-direct: high confidence {rag_confidence:.2f}; "
-                        f"strategy={strategy}, threshold={threshold:.2f}"
-                    ),
-                    "rag_direct": True,
-                    "algorithm_patterns": algorithm_patterns,
-                    "user_selection_patterns": user_selection_patterns,
-                    "similar_scenarios_count": len(similar_scenarios)
-                }
-                return decision
-        except Exception as _rag_direct_err:
-            # Fall through to LLM if anything unexpected occurs
-            pass
+                    decision = {
+                        "selected_users": selected_users,
+                        "selected_algorithm": algorithm_patterns.get("recommended_algorithm", "manifold"),
+                        "base_station_power_change": "+2.0",
+                        "power_change_dB": 2.0,
+                        "reasoning": (
+                            f"RAG-direct: high confidence {rag_confidence:.2f}; "
+                            f"strategy={strategy}, threshold={threshold:.2f}"
+                        ),
+                        "rag_direct": True,
+                        "algorithm_patterns": algorithm_patterns,
+                        "user_selection_patterns": user_selection_patterns,
+                        "similar_scenarios_count": len(similar_scenarios)
+                    }
+                    return decision
+            except Exception as _rag_direct_err:
+                # Fall through to LLM if anything unexpected occurs
+                pass
 
         # Get decision from LLM with convergence detection
         prompt = f"{self.system_prompt}\n\n{context}\n\nProvide your decision as a JSON object with the following structure:\n{{\n  \"selected_users\": [list of user IDs to optimize],\n  \"selected_algorithm\": \"algorithm_name\",\n  \"base_station_power_change\": \"power adjustment in dB (e.g., '+3.0' or '-2.5')\",\n  \"reasoning\": \"explanation of your decisions\",\n  \"converged\": true/false,\n  \"convergence_reason\": \"reason if converged (e.g., 'all users satisfied', 'repeated configuration', 'max iterations reached')\"\n}}"
@@ -202,11 +219,160 @@ class CoordinatorAgent:
             decision["user_selection_patterns"] = user_selection_patterns
             decision["similar_scenarios_count"] = len(similar_scenarios)
             
+            # Add RAG override indicator if RAG was disabled
+            if rag_override_disabled:
+                decision["rag_override_disabled"] = True
+                decision["rag_direct"] = False
+                # Update reasoning to indicate LLM-only mode
+                original_reasoning = decision.get("reasoning", "")
+                decision["reasoning"] = f"LLM-only mode (RAG disabled): {original_reasoning}"
+            else:
+                decision["rag_override_disabled"] = False
+                decision["rag_direct"] = False
+            
+            # NEW: Always consult evaluator before finalizing decision
+            if evaluator_agent is not None:
+                try:
+                    print("🤝 Coordinator consulting evaluator before finalizing decision...")
+                    evaluated_decision = self._consult_evaluator_for_decision(
+                        scenario_data, decision, iteration_history, evaluator_agent
+                    )
+                    if evaluated_decision:
+                        print("✅ Decision refined based on evaluator consultation")
+                        return evaluated_decision
+                except Exception as eval_error:
+                    print(f"⚠️ Evaluator consultation failed: {eval_error}, proceeding with original decision")
+            
             return decision
             
         except Exception as e:
             print(f"Error in coordinator decision: {e}")
             return self._get_fallback_decision(scenario_data)
+    
+    def _consult_evaluator_for_decision(self, scenario_data: Dict[str, Any], 
+                                      initial_decision: Dict[str, Any],
+                                      iteration_history: List[Dict[str, Any]],
+                                      evaluator_agent) -> Dict[str, Any]:
+        """
+        Consult evaluator to refine the initial decision before execution.
+        """
+        try:
+            # Prepare consultation context
+            consultation_prompt = f"""
+DECISION CONSULTATION REQUEST
+
+The coordinator has prepared an initial decision for the current iteration. Please review and provide feedback to optimize for RSWS (Rank-Weighted Satisfaction per Watt) and PSD (Power-Satisfaction Dominance) metrics.
+
+CURRENT SCENARIO:
+- Scenario: {scenario_data.get('scenario_name', 'Unknown')}
+- Users: {len(scenario_data['scenario_data']['users'])}
+- Current Power: {scenario_data['sim_settings']['default_bs_power_dBm']} dBm
+
+COORDINATOR'S INITIAL DECISION:
+- Selected Users: {initial_decision['selected_users']}
+- Algorithm: {initial_decision['selected_algorithm']}
+- Power Change: {initial_decision.get('power_change_dB', 0)} dB
+- Reasoning: {initial_decision.get('reasoning', 'N/A')}
+
+USER STATUS (current delta SNRs):
+"""
+            # Add user status information
+            users = scenario_data['scenario_data']['users']
+            for user in users:
+                user_id = user['id']
+                delta_snr = user.get('delta_snr_dB', 0)
+                status = "SATISFIED" if delta_snr >= 0 else "UNSATISFIED"
+                selected = "SELECTED" if user_id in initial_decision['selected_users'] else "NOT_SELECTED"
+                consultation_prompt += f"\n- User {user_id}: {delta_snr:.1f} dB ({status}, {selected})"
+
+            # Add iteration history context if available
+            if iteration_history:
+                recent_metrics = []
+                for hist in iteration_history[-3:]:  # Last 3 iterations
+                    metrics = hist.get('iteration_metrics', {})
+                    if metrics:
+                        recent_metrics.append(f"RSWS: {metrics.get('rsws', 0):.3f}, Satisfaction: {metrics.get('satisfaction_rate', 0):.2f}")
+                
+                if recent_metrics:
+                    consultation_prompt += f"\n\nRECENT PERFORMANCE METRICS:\n" + "\n".join(recent_metrics)
+
+            consultation_prompt += f"""
+
+Please provide feedback in JSON format:
+{{
+  "decision_approved": true/false,
+  "suggested_modifications": {{
+    "selected_users": [list of user IDs if changes needed],
+    "selected_algorithm": "algorithm_name if change needed",
+    "power_change_dB": number if change needed
+  }},
+  "optimization_focus": "explanation of how to maximize RSWS and PSD",
+  "reasoning": "detailed explanation of your recommendations"
+}}
+
+Focus on maximizing RSWS (energy efficiency) and PSD (power-satisfaction dominance) metrics.
+"""
+
+            # Get evaluator's feedback (using evaluator's LLM client)
+            evaluator_response = evaluator_agent.client.call(consultation_prompt, 
+                                                           "You are an optimization evaluator focused on maximizing RSWS and PSD metrics.")
+            
+            # Parse evaluator's response
+            feedback = self._parse_evaluator_feedback(evaluator_response)
+            
+            if feedback and not feedback.get('decision_approved', True):
+                # Apply evaluator's suggested modifications
+                refined_decision = initial_decision.copy()
+                modifications = feedback.get('suggested_modifications', {})
+                
+                if 'selected_users' in modifications:
+                    refined_decision['selected_users'] = modifications['selected_users']
+                    print(f"👥 Evaluator refined user selection: {modifications['selected_users']}")
+                
+                if 'selected_algorithm' in modifications:
+                    refined_decision['selected_algorithm'] = modifications['selected_algorithm']
+                    print(f"🔧 Evaluator refined algorithm: {modifications['selected_algorithm']}")
+                
+                if 'power_change_dB' in modifications:
+                    refined_decision['power_change_dB'] = modifications['power_change_dB']
+                    print(f"⚡ Evaluator refined power change: {modifications['power_change_dB']} dB")
+                
+                # Update reasoning to include evaluator input
+                original_reasoning = refined_decision.get('reasoning', '')
+                evaluator_reasoning = feedback.get('reasoning', '')
+                refined_decision['reasoning'] = f"{original_reasoning} | Evaluator guidance: {evaluator_reasoning}"
+                refined_decision['evaluator_consulted'] = True
+                refined_decision['evaluator_modifications'] = True
+                
+                return refined_decision
+            else:
+                # Decision approved as-is
+                initial_decision['evaluator_consulted'] = True
+                initial_decision['evaluator_modifications'] = False
+                return initial_decision
+                
+        except Exception as e:
+            print(f"⚠️ Error in evaluator consultation: {e}")
+            return None
+    
+    def _parse_evaluator_feedback(self, response: str) -> Dict[str, Any]:
+        """Parse evaluator's feedback response."""
+        try:
+            import json
+            import re
+            
+            # Try to extract JSON from response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                return json.loads(json_str)
+            else:
+                print("⚠️ Could not parse evaluator feedback JSON")
+                return None
+                
+        except Exception as e:
+            print(f"⚠️ Error parsing evaluator feedback: {e}")
+            return None
     
     def _prepare_decision_context(self, scenario_data: Dict[str, Any], 
                                 algorithm_patterns: Dict[str, Any],
@@ -283,6 +449,74 @@ class CoordinatorAgent:
                     f"- Urgent action: {last_eval.get('action_reason', 'Evaluator requested immediate corrective action.')}"
                 )
                 context_parts.append("- Prioritize algorithm or power adjustments that address this warning before following RAG suggestions.")
+        
+        return "\n".join(context_parts)
+    
+    def _prepare_llm_only_context(self, scenario_data: Dict[str, Any],
+                                 iteration_history: List[Dict[str, Any]] = None) -> str:
+        """Prepare context information for LLM-only decision making (RAG disabled)."""
+        
+        context_parts = []
+        
+        # Current scenario information
+        scenario = scenario_data["scenario_data"]
+        context_parts.append(f"CURRENT SCENARIO: {scenario_data.get('scenario_name', 'Unknown')}")
+        context_parts.append(f"Number of users: {len(scenario['users'])}")
+        context_parts.append(f"Current BS power: {scenario_data['sim_settings']['default_bs_power_dBm']} dBm")
+        
+        # User details
+        context_parts.append("\nUSER DETAILS:")
+        for user in scenario["users"]:
+            los_status = "LoS" if user.get("csi", {}).get("los") else "NLoS"
+            fading = user.get("csi", {}).get("fading", "Unknown")
+            k_factor = user.get("csi", {}).get("K_factor_dB", "N/A")
+            
+            context_parts.append(
+                f"User {user['id']}: Pos({user['coord'][0]:.1f}, {user['coord'][1]:.1f}), "
+                f"Req={user['req_snr_dB']:.1f}dB, Ach={user['achieved_snr_dB']:.1f}dB, "
+                f"Δ={user['delta_snr_dB']:.1f}dB, {los_status}, {fading}"
+                + (f", K={k_factor:.1f}dB" if k_factor != "N/A" else "")
+            )
+        
+        # No RAG patterns - purely LLM-based decision
+        context_parts.append("\nMODE: LLM-ONLY DECISION MAKING")
+        context_parts.append("RAG system is disabled. Make decisions based solely on current scenario and iteration history.")
+        context_parts.append("Available algorithms: GD (Gradient Descent), manifold, random, agent")
+        
+        # Iteration history (if available)
+        if iteration_history:
+            recent_iterations = iteration_history[-3:]
+            start_index = len(iteration_history) - len(recent_iterations) + 1
+            context_parts.append(f"\nITERATION HISTORY (Last {len(recent_iterations)} iterations):")
+            for offset, iteration in enumerate(recent_iterations):
+                idx = start_index + offset
+                coord = iteration.get('coordinator_decision', {}) if isinstance(iteration, dict) else {}
+                evaluation = iteration.get('evaluation', {}) if isinstance(iteration, dict) else {}
+                urgent_reason = iteration.get('urgent_action_reason') or evaluation.get('action_reason') if isinstance(iteration, dict) else None
+                score = evaluation.get('overall_score')
+                try:
+                    score_str = f"{float(score):.2f}" if score is not None else "N/A"
+                except (TypeError, ValueError):
+                    score_str = str(score) if score is not None else "N/A"
+                context_parts.append(
+                    "Iteration {idx}: algo={algo}, users={users}, score={score}, success={success}, "
+                    "urgent_action={urgent}".format(
+                        idx=idx,
+                        algo=coord.get('selected_algorithm', 'N/A'),
+                        users=coord.get('selected_users', []),
+                        score=score_str,
+                        success=evaluation.get('success', False),
+                        urgent=urgent_reason or 'None'
+                    )
+                )
+
+            last_eval = iteration_history[-1].get('evaluation', {}) if isinstance(iteration_history[-1], dict) else {}
+            if last_eval.get('urgent_action_needed', False):
+                context_parts.append("\nLATEST EVALUATOR GUIDANCE:")
+                context_parts.append(
+                    f"- Urgent action: {last_eval.get('action_reason', 'Evaluator requested immediate corrective action.')}"
+                )
+                context_parts.append("- Prioritize addressing this guidance in your decision.")
         
         return "\n".join(context_parts)
     
@@ -452,35 +686,66 @@ class EvaluatorAgent:
     def evaluate_iteration(self, before_state: Dict[str, Any], after_state: Dict[str, Any],
                           coordinator_decision: Dict[str, Any], iteration_history: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Evaluate the results of an optimization iteration with historical context.
+        Evaluate the results of an optimization iteration with historical context and RSWS/PSD optimization focus.
         """
-        # Prepare evaluation context with history
-        context = self._prepare_evaluation_context(before_state, after_state, coordinator_decision, iteration_history)
+        # Calculate RSWS/PSD metrics for this iteration using before_state for scenario data
+        current_metrics = self._calculate_rsws_psd_metrics(after_state, before_state)
+        
+        # Prepare evaluation context with history and metrics
+        context = self._prepare_evaluation_context(before_state, after_state, coordinator_decision, iteration_history, current_metrics)
         
         # Check for extreme delta values that require immediate action
         extreme_analysis = self._analyze_extreme_deltas(before_state, after_state)
         
-        # Enhanced evaluation prompt with extreme value handling
+        # Enhanced evaluation prompt with RSWS/PSD optimization focus
         prompt = f"""{self.system_prompt}
 
 {context}
 
 {extreme_analysis}
 
-CRITICAL: Pay special attention to extreme delta SNR values:
-- If any user has delta > 15 dB: IMMEDIATE power reduction required (mark as "wasteful")
-- If any user has delta < -10 dB: URGENT power increase or algorithm change needed
-- If deltas vary by >20 dB between users: Severe fairness issue requiring action
+CRITICAL OPTIMIZATION OBJECTIVES:
+PRIMARY GOAL: Maximize RSWS (Rank-Weighted Satisfaction per Watt) and PSD (Power-Satisfaction Dominance) metrics.
+
+RSWS/PSD OPTIMIZATION GUIDELINES:
+- Higher RSWS indicates better energy efficiency per satisfied user
+- PSD measures power-satisfaction trade-offs
+- Prioritize solutions that improve worst-performing users (rank-weighted)
+- Balance power efficiency with user satisfaction
+- Current iteration RSWS: {current_metrics.get('rsws', 0):.3f}
+
+CRITICAL ACTIONS (IN PRIORITY ORDER):
+1. FIRST PRIORITY: Ensure all users achieve delta_SNR >= 0 dB (basic satisfaction)
+   - If ANY user has delta < 0 dB: URGENT power increase or algorithm change needed
+   - Do NOT reduce power until ALL users are satisfied (delta >= 0 dB)
+   - Mark as "power increase needed" if unsatisfied users exist
+   
+2. SECOND PRIORITY: Optimize fairness among satisfied users
+   - If deltas vary by >20 dB between users: Severe fairness issue requiring action
+   - If any user has delta < -10 dB: CRITICAL power increase needed
+   
+3. THIRD PRIORITY: Power efficiency (only after all users satisfied)
+   - If ALL users have delta > 15 dB AND all users satisfied: Consider power reduction for efficiency
+   - If RSWS is declining while users satisfied: Recommend power or algorithm adjustments
+
+POWER REDUCTION RULES:
+- NEVER recommend power reduction if unsatisfied_users list is not empty
+- NEVER mark as "wasteful" if any user has negative delta_SNR
+- Only consider efficiency optimizations when all_users_satisfied = True
+
+IMPORTANT: User satisfaction must come before power efficiency. Check satisfaction status before any power recommendations.
 
 Provide your evaluation as a JSON object with the following structure:
 {{
-    "performance_summary": "brief summary of changes and extreme values",
+    "performance_summary": "brief summary focusing on RSWS/PSD performance",
     "power_efficiency_status": "efficient/wasteful/appropriate", 
     "fairness_assessment": "fair/unfair distribution across users",
+    "rsws_analysis": "analysis of current RSWS performance and trends",
+    "psd_analysis": "analysis of power-satisfaction dominance",
     "recommendations": {{
-        "power_adjustment": "specific power change recommendation if needed",
-        "algorithm_tuning": "algorithm or parameter adjustments",
-        "threshold_adjustment": "user selection or priority changes"
+        "power_adjustment": "specific power change recommendation to maximize RSWS/PSD",
+        "algorithm_tuning": "algorithm adjustments to improve RSWS/PSD",
+        "threshold_adjustment": "user selection changes to optimize metrics"
     }},
     "success": true/false,
     "overall_score": 0.0-1.0,
@@ -504,18 +769,163 @@ Provide your evaluation as a JSON object with the following structure:
             print(f"Error in evaluator: {e}")
             return self._get_fallback_evaluation(f"Evaluator failure: {e}")
     
+    def _calculate_rsws_psd_metrics(self, after_state: Dict[str, Any], scenario_data: Dict[str, Any] = None) -> Dict[str, float]:
+        """Calculate RSWS and PSD metrics for current iteration."""
+        try:
+            from tools import MemoryTool
+            memory_tool = MemoryTool()
+            
+            # Get final SNRs from algorithm results and required SNRs from scenario
+            final_snrs = after_state.get('final_snrs', {})
+            
+            # If scenario_data is not provided, try to get it from after_state
+            if scenario_data is None:
+                scenario_data = after_state.get('scenario_data', {})
+            
+            # Get users from the correct nested structure: scenario_data.scenario_data.users
+            users = scenario_data.get('scenario_data', {}).get('users', [])
+            
+            # Calculate delta SNRs: final_snr - required_snr for each user
+            delta_snrs = []
+            
+            for user in users:
+                user_id = user.get('id')
+                required_snr = user.get('req_snr_dB', 0)
+                final_snr = final_snrs.get(str(user_id), final_snrs.get(user_id, 0))
+                delta_snr = final_snr - required_snr
+                delta_snrs.append(delta_snr)
+            
+            # Get power from sim_settings
+            power_dBm = scenario_data.get('sim_settings', {}).get('default_bs_power_dBm', 35.0)
+            
+            if delta_snrs and power_dBm:
+                result = memory_tool.calculate_iteration_metrics(delta_snrs, power_dBm)
+                return result
+            else:
+                return {'rsws': 0.0, 's_tilde': 0.0, 'satisfaction_rate': 0.0}
+                
+        except Exception as e:
+            print(f"⚠️ Error calculating RSWS/PSD metrics in evaluator: {e}")
+            return {'rsws': 0.0, 's_tilde': 0.0, 'satisfaction_rate': 0.0}
+    
+    def _check_user_satisfaction_status(self, after_state: Dict[str, Any], scenario_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Check user satisfaction status to guide power/algorithm decisions."""
+        try:
+            # Get final SNRs from algorithm results
+            final_snrs = after_state.get('final_snrs', {})
+            
+            # If scenario_data is not provided, try to get it from after_state
+            if scenario_data is None:
+                scenario_data = after_state.get('scenario_data', {})
+            
+            # Get users from the correct nested structure
+            users = scenario_data.get('scenario_data', {}).get('users', [])
+            
+            satisfied_users = []
+            unsatisfied_users = []
+            delta_snrs = []
+            
+            for user in users:
+                user_id = user.get('id')
+                required_snr = user.get('req_snr_dB', 0)
+                final_snr = final_snrs.get(str(user_id), final_snrs.get(user_id, 0))
+                delta_snr = final_snr - required_snr
+                delta_snrs.append(delta_snr)
+                
+                if delta_snr >= 0:
+                    satisfied_users.append(user_id)
+                else:
+                    unsatisfied_users.append(user_id)
+            
+            return {
+                'satisfied_users': satisfied_users,
+                'unsatisfied_users': unsatisfied_users,
+                'all_satisfied': len(unsatisfied_users) == 0,
+                'satisfaction_rate': len(satisfied_users) / max(len(users), 1),
+                'delta_snrs': delta_snrs,
+                'min_delta': min(delta_snrs) if delta_snrs else 0,
+                'max_delta': max(delta_snrs) if delta_snrs else 0,
+                'worst_performing_user': unsatisfied_users[0] if unsatisfied_users else None
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Error checking user satisfaction status: {e}")
+            return {
+                'satisfied_users': [],
+                'unsatisfied_users': [],
+                'all_satisfied': False,
+                'satisfaction_rate': 0.0,
+                'delta_snrs': [],
+                'min_delta': 0,
+                'max_delta': 0,
+                'worst_performing_user': None
+            }
+    
+    def _calculate_metrics_trend(self, iteration_history: List[Dict[str, Any]], metric_name: str) -> str:
+        """Calculate trend for a specific metric from iteration history."""
+        try:
+            # Extract metric values from recent iterations
+            metric_values = []
+            for iteration in iteration_history[-5:]:  # Last 5 iterations
+                metrics = iteration.get('iteration_metrics', {})
+                if metrics and metric_name in metrics:
+                    metric_values.append(metrics[metric_name])
+            
+            if len(metric_values) < 2:
+                return "Insufficient data"
+            
+            # Calculate trend
+            recent_avg = sum(metric_values[-3:]) / len(metric_values[-3:]) if len(metric_values) >= 3 else metric_values[-1]
+            earlier_avg = sum(metric_values[:2]) / len(metric_values[:2]) if len(metric_values) >= 2 else metric_values[0]
+            
+            if recent_avg > earlier_avg * 1.05:
+                return f"Improving (recent: {recent_avg:.3f}, earlier: {earlier_avg:.3f})"
+            elif recent_avg < earlier_avg * 0.95:
+                return f"Declining (recent: {recent_avg:.3f}, earlier: {earlier_avg:.3f})"
+            else:
+                return f"Stable (recent: {recent_avg:.3f})"
+                
+        except Exception as e:
+            return f"Trend calculation error: {e}"
+    
     def _prepare_evaluation_context(self, before_state: Dict[str, Any], 
                                   after_state: Dict[str, Any],
                                   coordinator_decision: Dict[str, Any],
-                                  iteration_history: List[Dict[str, Any]] = None) -> str:
+                                  iteration_history: List[Dict[str, Any]] = None,
+                                  current_metrics: Dict[str, float] = None) -> str:
         """Prepare context for evaluation with historical analysis."""
         
         context_parts = []
         
-        # Add historical context and patterns
+        # Add user satisfaction status first (most critical information)
+        satisfaction_status = self._check_user_satisfaction_status(after_state, before_state)
+        context_parts.append("USER SATISFACTION STATUS:")
+        context_parts.append(f"All users satisfied: {satisfaction_status['all_satisfied']}")
+        context_parts.append(f"Satisfied users: {satisfaction_status['satisfied_users']}")
+        context_parts.append(f"Unsatisfied users: {satisfaction_status['unsatisfied_users']}")
+        context_parts.append(f"Satisfaction rate: {satisfaction_status['satisfaction_rate']:.2%}")
+        context_parts.append(f"Worst performing user: {satisfaction_status['worst_performing_user']}")
+        context_parts.append(f"Delta SNR range: {satisfaction_status['min_delta']:.1f} to {satisfaction_status['max_delta']:.1f} dB")
+        context_parts.append("")
+        
+        # Add RSWS/PSD metrics context
+        if current_metrics:
+            context_parts.append("CURRENT ITERATION METRICS:")
+            context_parts.append(f"RSWS (Rank-Weighted Satisfaction per Watt): {current_metrics.get('rsws', 0):.3f}")
+            context_parts.append(f"S̃ (Satisfaction Core): {current_metrics.get('s_tilde', 0):.3f}")
+            context_parts.append(f"Satisfaction Rate: {current_metrics.get('satisfaction_rate', 0):.2%}")
+            context_parts.append(f"Mean Delta SNR: {current_metrics.get('mean_delta_snr', 0):.1f} dB")
+            context_parts.append("")
+        
+        # Add historical context and patterns with metrics trends
         if iteration_history and len(iteration_history) > 0:
             context_parts.append("HISTORICAL CONTEXT:")
             context_parts.append(self._generate_historical_summary(iteration_history))
+            
+            # Add RSWS/PSD trends if available
+            rsws_trend = self._calculate_metrics_trend(iteration_history, 'rsws')
+            if rsws_trend:
+                context_parts.append(f"RSWS Trend: {rsws_trend}")
             context_parts.append("")
         
         # Coordinator's decision

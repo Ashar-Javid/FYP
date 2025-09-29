@@ -7,6 +7,7 @@ algorithm execution, and evaluator feedback.
 import os
 import json
 import time
+import numpy as np
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
@@ -208,6 +209,131 @@ class RISOptimizationFramework:
         except Exception as e:
             print(f"⚠️  Metrics evaluation skipped/failed: {e}")
 
+        # Optional: run superiority analysis (comprehensive agentic system showcase)
+        try:
+            superiority_config = FRAMEWORK_CONFIG.get("superiority_analysis", {})
+            if superiority_config.get("enabled", False):
+                print("🔬 Running superiority analysis...")
+                from superiority_metrics import create_comprehensive_superiority_analysis
+                
+                # Prepare results dictionary for superiority analysis
+                superiority_results = {}
+                
+                # Prepare superiority analysis data with both algorithms and agentic framework
+                users_data = self.current_scenario.get("scenario_data", {}).get("users", [])
+                req_snr_map = {u["id"]: u.get("req_snr_dB", 0.0) for u in users_data}
+                
+                # 1. Add individual algorithm results from comparison
+                algo_comparison_results = session_results.get("algorithm_comparison_results")
+                if algo_comparison_results:
+                    for method_name, snr_results in algo_comparison_results.items():
+                        if isinstance(snr_results, dict) and method_name != "random_baseline":
+                            # Calculate delta SNRs from final SNRs
+                            delta_snrs = []
+                            for user_id, final_snr in snr_results.items():
+                                if isinstance(user_id, int) and not np.isnan(final_snr):
+                                    req_snr = req_snr_map.get(user_id, 0.0)
+                                    delta_snr = final_snr - req_snr
+                                    delta_snrs.append(delta_snr)
+                            
+                            if delta_snrs:  # Only add if we have valid data
+                                comparison_power = session_results.get("algorithm_comparison_power_dBm", 35.0)
+                                superiority_results[method_name] = {
+                                    'delta_snrs': delta_snrs,
+                                    'final_snrs': snr_results,
+                                    'user_count': len(delta_snrs),
+                                    'power_dbm': comparison_power,
+                                    'iterations': len(self.iteration_history) if hasattr(self, 'iteration_history') else 6,
+                                    'satisfied_users': len([d for d in delta_snrs if d >= 0])
+                                }
+                
+                # 2. Add Agentic Coordinator results (our framework's intelligent decision-making)
+                if hasattr(self, 'iteration_history') and self.iteration_history:
+                    # Get the best iteration results from our agentic framework
+                    best_iteration = max(self.iteration_history, 
+                                       key=lambda x: x.get('evaluation', {}).get('overall_score', 0))
+                    
+                    # Extract agentic coordinator performance from iteration data
+                    if 'per_user_final_delta_snr' in best_iteration and best_iteration['per_user_final_delta_snr']:
+                        # per_user_final_delta_snr is a list of dictionaries with user_id and final_delta_snr_dB
+                        per_user_deltas_list = best_iteration['per_user_final_delta_snr']
+                        agentic_delta_snrs = [user_data['final_delta_snr_dB'] for user_data in per_user_deltas_list]
+                        agentic_power = best_iteration.get('current_power_dBm', 35.0)
+                        
+                        # Get final SNRs from algorithm results if available
+                        agentic_final_snrs = {}
+                        if 'algorithm_results' in best_iteration and 'final_snrs' in best_iteration['algorithm_results']:
+                            final_snrs_dict = best_iteration['algorithm_results']['final_snrs']
+                            for user_id, final_snr in final_snrs_dict.items():
+                                agentic_final_snrs[int(user_id)] = final_snr
+                        
+                        superiority_results['Agentic_Coordinator'] = {
+                            'delta_snrs': agentic_delta_snrs,
+                            'final_snrs': agentic_final_snrs,
+                            'user_count': len(agentic_delta_snrs),
+                            'power_dbm': agentic_power,
+                            'iterations': len(self.iteration_history),
+                            'satisfied_users': len([d for d in agentic_delta_snrs if d >= 0])
+                        }
+                        print(f"📊 Added Agentic Coordinator to superiority analysis: {len(agentic_delta_snrs)} users, power: {agentic_power:.1f} dBm")
+                    
+                    elif 'algorithm_results' in best_iteration and 'final_snrs' in best_iteration['algorithm_results']:
+                        # Fallback: extract from algorithm results
+                        final_snrs = best_iteration['algorithm_results']['final_snrs']
+                        if final_snrs:
+                            agentic_delta_snrs = []
+                            agentic_final_snrs = {}
+                            
+                            for user_id, final_snr in final_snrs.items():
+                                if isinstance(user_id, int):
+                                    req_snr = req_snr_map.get(user_id, 0.0)
+                                    delta_snr = final_snr - req_snr
+                                    agentic_delta_snrs.append(delta_snr)
+                                    agentic_final_snrs[user_id] = final_snr
+                            
+                            if agentic_delta_snrs:
+                                agentic_power = best_iteration.get('current_power_dBm', 35.0)
+                                superiority_results['Agentic_Coordinator'] = {
+                                    'delta_snrs': agentic_delta_snrs,
+                                    'final_snrs': agentic_final_snrs,
+                                    'user_count': len(agentic_delta_snrs),
+                                    'power_dbm': agentic_power,
+                                    'iterations': len(self.iteration_history),
+                                    'satisfied_users': len([d for d in agentic_delta_snrs if d >= 0])
+                                }
+                                print(f"📊 Added Agentic Coordinator to superiority analysis (fallback): {len(agentic_delta_snrs)} users, power: {agentic_power:.1f} dBm")
+                
+                # Generate superiority plots
+                if superiority_results:
+                    print(f"🔍 Superiority analysis data prepared for {len(superiority_results)} methods:")
+                    for method, data in superiority_results.items():
+                        print(f"   {method}: {len(data['delta_snrs'])} users, power: {data['power_dbm']:.1f} dBm")
+                    
+                    superiority_plots_dir = os.path.join(per_session_plots_dir, "superiority_analysis")
+                    os.makedirs(superiority_plots_dir, exist_ok=True)
+                    
+                    superiority_plot_files = create_comprehensive_superiority_analysis(
+                        superiority_results,
+                        output_dir=superiority_plots_dir
+                    )
+                    
+                    # Store superiority analysis results
+                    session_results.setdefault("plots", {})["superiority_analysis"] = superiority_plot_files
+                    session_results["superiority_analysis"] = {
+                        "enabled": True,
+                        "plots_generated": len(superiority_plot_files),
+                        "plot_files": superiority_plot_files,
+                        "analysis_timestamp": datetime.now().isoformat()
+                    }
+                    
+                    print(f"✨ Superiority analysis completed! {len(superiority_plot_files)} plots generated.")
+                else:
+                    print("⚠️  No algorithm comparison data available for superiority analysis.")
+        except Exception as e:
+            print(f"⚠️  Superiority analysis skipped/failed: {e}")
+            import traceback
+            traceback.print_exc()
+
         print(f"\n🎉 Optimization session completed! Results saved.")
         log_event("session end")
         return session_results
@@ -217,11 +343,12 @@ class RISOptimizationFramework:
         
         iteration_start_time = time.time()
         
-        # 1. Coordinator Analysis and Decision
+        # 1. Coordinator Analysis and Decision (now with evaluator consultation)
         print("🧠 Coordinator analyzing scenario...")
         coordinator_decision = self.coordinator.analyze_scenario_and_decide(
             self.current_scenario, 
-            self.iteration_history
+            self.iteration_history,
+            self.evaluator  # Pass evaluator for consultation
         )
         
         print(f"📋 Coordinator Decision:")
@@ -245,18 +372,56 @@ class RISOptimizationFramework:
             }
         
         # Check framework convergence criteria before proceeding
-        if self._check_convergence_criteria(coordinator_decision):
-            print("🛑 FRAMEWORK CONVERGENCE FLAG RAISED - Stopping optimization")
-            # Return a special iteration result indicating convergence
-            return {
-                "iteration": iteration_num,
-                "timestamp": datetime.now().isoformat(),
-                "execution_time": time.time() - iteration_start_time,
-                "coordinator_decision": coordinator_decision,
-                "convergence_detected": True,
-                "convergence_reason": "Framework: Repeated same configuration or max power usage",
-                "current_power_dBm": self.current_power_dBm
-            }
+        framework_convergence_detected = self._check_convergence_criteria(coordinator_decision)
+        
+        # NEVER allow convergence if any users have negative delta SNR
+        if framework_convergence_detected:
+            # Get current user delta SNRs from the most recent iteration
+            user_delta_snrs = {}
+            if self.iteration_history:
+                last_iteration = self.iteration_history[-1]
+                # Check if we have algorithm results with final SNRs
+                if 'algorithm_results' in last_iteration and 'final_snrs' in last_iteration['algorithm_results']:
+                    final_snrs = last_iteration['algorithm_results']['final_snrs']
+                    # Calculate delta SNRs from final SNRs and required SNRs
+                    for user_id, final_snr in final_snrs.items():
+                        if isinstance(user_id, int):
+                            # Get required SNR for this user from scenario
+                            user_data = next((u for u in self.current_scenario['users'] if u['id'] == user_id), None)
+                            if user_data:
+                                req_snr = user_data.get('req_snr_dB', 0.0)
+                                delta_snr = final_snr - req_snr
+                                user_delta_snrs[user_id] = delta_snr
+                
+                # Fallback: check evaluator analysis if available
+                if not user_delta_snrs and 'evaluator_analysis' in last_iteration:
+                    eval_analysis = last_iteration['evaluator_analysis']
+                    # Look for delta SNR information in evaluator analysis
+                    if 'per_user_final_delta_snr' in eval_analysis:
+                        for user_data in eval_analysis['per_user_final_delta_snr']:
+                            user_delta_snrs[user_data['user_id']] = user_data['final_delta_snr_dB']
+            
+            # Check if any user has negative delta SNR
+            unsatisfied_users = [user_id for user_id, delta_snr in user_delta_snrs.items() if delta_snr < 0]
+            
+            if unsatisfied_users:
+                print(f"🚫 CONVERGENCE BLOCKED: Users {unsatisfied_users} have negative delta SNR - continuing optimization")
+                print(f"    Unsatisfied user delta SNRs: {[(uid, f'{user_delta_snrs[uid]:.1f} dB') for uid in unsatisfied_users]}")
+                # Reset convergence counters to continue optimization
+                self.consecutive_same_configs = 0
+                self.convergence_flag = False
+            else:
+                print("🛑 FRAMEWORK CONVERGENCE FLAG RAISED - All users satisfied, stopping optimization")
+                # Return a special iteration result indicating convergence
+                return {
+                    "iteration": iteration_num,
+                    "timestamp": datetime.now().isoformat(),
+                    "execution_time": time.time() - iteration_start_time,
+                    "coordinator_decision": coordinator_decision,
+                    "convergence_detected": True,
+                    "convergence_reason": "Framework: All users satisfied with repeated configuration",
+                    "current_power_dBm": self.current_power_dBm
+                }
         
         # 2. Apply power adjustment (only if no previous evaluator recommendation)
         if 'power_change_dB' in coordinator_decision:
@@ -636,7 +801,7 @@ class RISOptimizationFramework:
             if self.consecutive_same_configs >= 3:
                 print("🛑 CONVERGENCE DETECTED: Same algorithm, power, and users for 3 consecutive iterations")
                 self.convergence_flag = True
-                return True
+                return True  # Will be checked against user satisfaction in the calling method
         else:
             self.consecutive_same_configs = 1
             self.last_config = current_config

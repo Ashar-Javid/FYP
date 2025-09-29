@@ -89,8 +89,8 @@ def calculate_snr(h_eff, bs_power_dBm, noise_power_dBm):
     """
     Compute instantaneous SNR given effective channel and BS power.
     """
-    bs_power_linear = 10 ** ((bs_power_dBm - 30) / 10)  # dBm to Watts
-    noise_linear = 10 ** ((noise_power_dBm - 30) / 10)  # dBm to Watts
+    bs_power_linear = 10**(bs_power_dBm/10) / 1000  # dBm to Watts
+    noise_linear = 10**(noise_power_dBm/10) / 1000
     snr = (abs(h_eff)**2 * bs_power_linear) / noise_linear
     return 10 * np.log10(snr + 1e-9)
 
@@ -106,7 +106,7 @@ CASE_3U = {
         {"id": 2, "coord": (70, -10, 1.5), "req_snr_dB": get_required_snr_from_json("3U", 2) or 3, "app": "Voice call",
          "csi": {"blockage": "non_blocked", "los": "NLoS", "fading": "Rician", "K_factor_dB": 6}},
         {"id": 3, "coord": (120, 40, 1.5), "req_snr_dB": get_required_snr_from_json("3U", 3) or 20, "app": "4K video",
-         "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh"}}
+         "csi": {"blockage": "blocked", "los": "NLoS", "fading": "Rayleigh", "K_factor_dB": 6}}
     ]
 }
 

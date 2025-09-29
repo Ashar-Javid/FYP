@@ -1091,7 +1091,7 @@ def main():
     generator = RISDatasetGenerator()
 
     # Generate dataset
-    dataset = generator.generate_dataset(num_examples=5)
+    dataset = generator.generate_dataset(num_examples=5000)
 
     # Save dataset
     generator.save_dataset(dataset, 'ris_user_algorithm_dataset.json')

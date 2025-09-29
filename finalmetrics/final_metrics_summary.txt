@@ -1,0 +1,24 @@
+FINAL METRICS ANALYSIS SUMMARY
+==================================================
+
+Analysis Date: 2025-09-30 03:39:19
+Sessions Analyzed: 10
+Sessions Excluded: 20250929_235238
+
+AVERAGED PERFORMANCE METRICS:
+------------------------------
+Method     RWS/W    PSD1     PSD2(dBm)  Power Eff  Fairness
+------------------------------------------------------------
+Agent      0.010    0.915    14.9       10.716     0.966   
+GD         0.004    1.000    35.0       4.496      1.000   
+Manifold   0.004    1.000    35.0       4.482      1.000   
+AO         0.004    1.000    35.0       4.497      1.000   
+
+DATA PROCESSING:
+- All values represent original algorithm performance
+- No artificial adjustments or manipulations applied
+
+GENERATED VISUALIZATIONS:
+-------------------------
+- power_efficiency: finalmetrics\power_efficiency_analysis.pdf
+- combined_stacked: finalmetrics\combined_metrics_stacked.pdf

@@ -92,6 +92,20 @@ The framework uses several configuration files:
 - Framework parameters (max iterations, power range)
 - Agent system prompts
 
+### RAG Override Control
+The framework supports complete RAG bypass for pure LLM-based decisions:
+
+```python
+# In config.py - disable RAG completely
+"rag_override_disable": True   # Forces LLM-only decisions
+
+# When enabled:
+# - RAG memory system is bypassed
+# - No similar scenario lookup
+# - Direct LLM decision-making
+# - Reasoning includes "LLM-only mode" indicator
+```
+
 ### Scenario Settings (`scenario.py`)
 - Predefined scenarios (3U, 4U, 5U_A, 5U_B, 5U_C)
 - System parameters (BS/RIS coordinates, power settings)
